@@ -1,0 +1,18 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="cn.rokid.bridge" android:versionCode="207" android:versionName="0.2.7">
+  <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="19" />
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+  <uses-permission android:name="android.permission.READ_LOGS" />
+  <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+  <uses-permission android:name="android.permission.GET_TASKS" />
+  <application android:label="若琪助手" android:debuggable="false" android:allowBackup="false" android:theme="@android:style/Theme.Holo.NoActionBar.Fullscreen">
+    <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+    <service android:name=".BridgeService" android:exported="false" />
+  </application>
+</manifest>

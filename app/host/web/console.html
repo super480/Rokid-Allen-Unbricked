@@ -1,0 +1,4072 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>若琪助手 · 对话台</title>
+<style>
+  :root {
+    --bg: #0d0d0f; --side: #121214; --surface: #1a1a1e; --surface2: #222228;
+    --line: #2c2c33; --hover: #26262c;
+    --text: #e9e9ec; --muted: #8f8f98; --dim: #64646e;
+    --accent: #4ac1ff; --ok: #5dbb63; --warn: #ff8f3f; --err: #ff6b6b;
+    /* 状态色与控件态：暗色为默认，浅色在下面整体覆盖 */
+    --scroll: #3a3a42;
+    --on-accent: #06202b; --on-err: #2b0a0a;
+    --ok-line: #2c4030; --warn-line: #4a3a2a; --accent-line: #274049;
+    --err-line: #4a2626; --err-text: #ffb3b3;
+    --focus-line: #45454d; --focus-glow: rgba(255,255,255,.05);
+    --inset-line: rgba(255,255,255,.09);
+    --menu-hover: #2e2e36; --btn-hover: #2b2b33;
+    --input-bg: #141418; --switch-on: #1c4257; --opt-on: #16242a;
+    --shadow: rgba(0,0,0,.6);
+  }
+  /* 浅色主题：整页换一套变量，不用改任何组件规则 */
+  :root[data-theme="light"] {
+    --bg: #f4f6f8; --side: #ffffff; --surface: #ffffff; --surface2: #eef1f5;
+    --line: #dde2e9; --hover: #e8ecf1;
+    --text: #161a20; --muted: #59616c; --dim: #8b929c;
+    --accent: #0b7fc4; --ok: #1a8f3c; --warn: #c2680a; --err: #d23b3b;
+    --scroll: #c6ccd4;
+    --on-accent: #ffffff; --on-err: #ffffff;
+    --ok-line: #cfe8d5; --warn-line: #f0dcc0; --accent-line: #c3e2f4;
+    --err-line: #f0cccc; --err-text: #b02828;
+    --focus-line: #b4bcc6; --focus-glow: rgba(0,0,0,.04);
+    --inset-line: rgba(0,0,0,.06);
+    --menu-hover: #e7ebf0; --btn-hover: #e6eaef;
+    --input-bg: #ffffff; --switch-on: #bfe3fb; --opt-on: #e2f1fb;
+    --shadow: rgba(0,0,0,.18);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased; overflow: hidden;
+  }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  .app { display: grid; grid-template-columns: 264px 1fr; height: 100vh; }
+
+  /* ---------- 左侧：助手列表 ---------- */
+  .sidebar {
+    background: var(--side); border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .side-head {
+    padding: 14px 16px; display: flex; align-items: center; gap: 9px;
+    border-bottom: 1px solid var(--line);
+  }
+  .side-head .logo { font-weight: 700; font-size: 14.5px; letter-spacing: .3px; }
+  .live-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--ok); box-shadow: 0 0 6px var(--ok);
+  }
+  .live-dot.busy { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .side-head .spacer { flex: 1; }
+  .icon-btn {
+    width: 28px; height: 28px; border: 0; background: transparent; color: var(--muted);
+    border-radius: 7px; cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: center; transition: background .15s, color .15s;
+  }
+  .icon-btn:hover { background: var(--hover); color: var(--text); }
+
+  .agent-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .group-label {
+    padding: 10px 8px 6px; font-size: 11px; color: var(--dim); letter-spacing: .6px;
+  }
+  .agent-item {
+    display: flex; align-items: center; gap: 10px; padding: 7px 8px;
+    border-radius: 10px; cursor: pointer; transition: background .12s;
+    color: var(--text); user-select: none;
+  }
+  .agent-item:hover { background: var(--hover); }
+  .agent-item.active { background: var(--surface2); }
+  .agent-item.disabled { opacity: .45; cursor: not-allowed; }
+  /* 头像用的是 Codex 设计好的那套图，圆形裁切 */
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto;
+    background: var(--surface2) center/cover no-repeat;
+    box-shadow: 0 0 0 1px var(--inset-line) inset;
+  }
+  .avatar.lg { width: 40px; height: 40px; }
+  .agent-list .avatar { width: 50px; height: 50px; }
+  .agent-name { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .agent-item.active .agent-name { font-weight: 600; }
+  .agent-name .dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--warn); margin-left: 6px; vertical-align: middle;
+  }
+  /* 没看过的条数：这条对话是在别处发生的 */
+  .agent-item .badge {
+    margin-left: auto; flex: 0 0 auto; min-width: 17px; height: 17px; padding: 0 5px;
+    border-radius: 9px; background: var(--accent); color: var(--on-accent);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10.5px; font-weight: 700;
+  }
+  .agent-sub { font-size: 11px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .agent-tag {
+    margin-left: auto; font-size: 10px; color: var(--dim);
+    border: 1px solid var(--line); padding: 1px 5px; border-radius: 5px;
+  }
+
+  .side-foot { border-top: 1px solid var(--line); padding: 12px 14px; }
+  .mode-row { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; font-size: 12px; color: var(--muted); }
+  .mode-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); flex: 0 0 auto; }
+  .mode-dot.on { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .mode-btn {
+    width: 100%; height: 30px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--surface2); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer;
+  }
+  .mode-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- 主区 ---------- */
+  .main { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+  .topbar {
+    height: 50px; flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+    padding: 0 18px; border-bottom: 1px solid var(--line);
+  }
+  .topbar .title { font-size: 14.5px; font-weight: 600; }
+  .topbar .spacer { flex: 1; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px;
+    border-radius: 13px; background: var(--surface); border: 1px solid var(--line);
+    color: var(--muted); font-size: 12px;
+  }
+  .chip b { color: var(--text); font-weight: 600; }
+  .chip.busy { color: var(--warn); border-color: var(--warn-line); }
+  .chip.idle { color: var(--ok); border-color: var(--ok-line); }
+  .chip.live { color: var(--accent); border-color: var(--accent-line); }
+
+  .chat { flex: 1; overflow-y: auto; padding: 24px 0 12px; }
+  .thread { max-width: 880px; margin: 0 auto; padding: 0 28px; }
+  /* 每个助手有自己的对话面板：只有选中的那个是可见的 */
+  .pane { display: none; }
+  .pane.active { display: block; }
+  .msg { margin: 0 0 18px; animation: fade .16s ease-out; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .msg .head { display: flex; align-items: center; gap: 8px; margin: 0 0 6px 2px; }
+  .msg .who { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .msg .ts { font-size: 11px; color: var(--dim); }
+  .msg .bubble {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 11px 15px; white-space: pre-wrap; word-wrap: break-word; line-height: 1.65;
+  }
+  /* 你说的话靠右、蓝色气泡；助手气泡保持中性的面板色，一眼分得开。
+     两套主题里 --accent / --on-accent 都成对定义，文字对比度不用另调。 */
+  .msg.user { display: flex; flex-direction: column; align-items: flex-end; }
+  .msg.user .head { justify-content: flex-end; margin: 0 2px 6px 0; }
+  .msg.user .bubble {
+    background: var(--accent); border-color: var(--accent); color: var(--on-accent);
+    max-width: 78%; border-bottom-right-radius: 5px;
+  }
+  .msg.user .who { color: var(--accent); }
+  .msg.system { text-align: center; }
+  .msg.system .bubble {
+    background: transparent; border: 0; padding: 2px; color: var(--dim); font-size: 12px;
+  }
+  .msg.error .bubble { border-color: var(--err-line); color: var(--err-text); }
+  .empty { text-align: center; color: var(--dim); padding: 64px 20px; font-size: 13px; }
+  .empty .big { font-size: 15px; color: var(--muted); margin-bottom: 6px; }
+  /* 每个助手面板顶部的「更早的对话」：历史一直存在磁盘上，
+     首屏只拿最近几十条，往前翻才去取更早的。 */
+  .older-wrap { text-align: center; padding: 4px 0 18px; }
+  .older-btn {
+    background: var(--surface2); color: var(--muted); cursor: pointer;
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 7px 16px; font-size: 12px; font-family: inherit;
+  }
+  .older-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+  .older-btn:disabled { opacity: .55; cursor: default; }
+  .hist-count { font-size: 10.5px; color: var(--dim); margin-left: 6px; font-weight: 400; }
+
+  /* ---------- 输入框 ---------- */
+  .composer-wrap { flex: 0 0 auto; padding: 8px 28px 18px; background: linear-gradient(180deg, transparent, var(--bg) 24%); }
+  .composer {
+    max-width: 880px; margin: 0 auto; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 24px; padding: 12px 12px 10px 18px;
+    transition: border-color .18s, box-shadow .18s;
+  }
+  .composer:focus-within { border-color: var(--focus-line); box-shadow: 0 0 0 1px var(--focus-glow); }
+  /* The note under the composer: it says which model answered when the
+     endpoint used another one than the one that was asked for. */
+  .model-note {
+    font-size: 11px; color: var(--warn); padding: 5px 10px 0;
+    border-top: 1px solid var(--line); margin-top: 6px;
+  }
+  .composer textarea {
+    width: 100%; background: transparent; border: 0; color: var(--text); font: inherit;
+    line-height: 1.6; resize: none; outline: none; min-height: 26px; max-height: 180px; padding: 2px 0 6px;
+  }
+  .composer textarea::placeholder { color: var(--dim); }
+  .cbar { display: flex; align-items: center; gap: 8px; }
+  .cbar .spacer { flex: 1; min-width: 0; }
+  .composer-hint {
+    display: block; font-size: 11px; color: var(--dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .model-btn {
+    display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px;
+    border-radius: 9px; background: transparent; border: 1px solid transparent;
+    color: var(--text); cursor: pointer; font: inherit; font-size: 13px;
+  }
+  .model-btn:hover { background: var(--hover); border-color: var(--line); }
+  .model-btn .chev { color: var(--dim); transition: transform .18s; }
+  .rel { position: relative; }
+  .model-menu {
+    position: absolute; bottom: calc(100% + 8px); right: 0; min-width: 280px; max-height: 360px;
+    overflow-y: auto; background: var(--surface2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 5px; box-shadow: 0 14px 40px var(--shadow); z-index: 60; display: none;
+  }
+  .model-menu.open { display: block; }
+  .model-menu .mh { font-size: 11px; color: var(--dim); padding: 7px 10px 4px; }
+  .model-menu .mi {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    border-radius: 8px; cursor: pointer; font-size: 13px;
+  }
+  .model-menu .mi:hover { background: var(--menu-hover); }
+  .model-menu .mi.cur { color: var(--accent); }
+  .model-menu .mi .desc { color: var(--dim); font-size: 11px; margin-left: auto; }
+  .model-menu .custom { padding: 6px; }
+  .model-menu .custom input {
+    width: 100%; background: var(--input-bg); border: 1px solid var(--line); color: var(--text);
+    border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; outline: none;
+  }
+  .model-menu .custom input:focus { border-color: var(--accent); }
+  .send-btn {
+    width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--accent);
+    color: var(--on-accent); cursor: pointer; display: inline-flex; align-items: center;
+    justify-content: center; transition: filter .15s, opacity .15s;
+  }
+  .send-btn:hover { filter: brightness(1.1); }
+  .send-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+  /* ---------- 设置弹层 ---------- */
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: center; justify-content: center; z-index: 120;
+  }
+  .modal-mask.open { display: flex; }
+  .modal {
+    width: 540px; max-width: 92vw; max-height: 86vh; overflow-y: auto; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 16px; padding: 20px 22px;
+  }
+  .modal h2 { margin: 0 0 4px; font-size: 16px; }
+  .modal .sub { color: var(--dim); font-size: 12px; margin-bottom: 16px; }
+  .modal .grp { margin-bottom: 16px; }
+  .modal .grp > label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 7px; }
+
+  /* ---------- 设置弹窗：左侧分类导航 + 右侧内容 ---------- */
+  /* OpenCode 风格：左列选分类，右列是标题 + 一行一项的卡片，
+     每行左边说明、右边控件。 */
+  .modal.modal-settings {
+    width: 760px; padding: 0; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .settings-body { display: flex; min-height: 420px; max-height: 76vh; }
+  .settings-nav {
+    width: 172px; flex: 0 0 auto; background: var(--side);
+    border-right: 1px solid var(--line); padding: 10px 8px; display: flex; flex-direction: column;
+  }
+  .nav-head { font-size: 15px; font-weight: 700; padding: 8px 10px 14px; }
+  .nav-item {
+    border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px;
+    text-align: left; padding: 8px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 2px;
+    transition: background .12s, color .12s;
+  }
+  .nav-item:hover { color: var(--text); background: var(--hover); }
+  .nav-item.on { color: var(--text); background: var(--surface2); font-weight: 600; }
+
+  .settings-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .pane-head { padding: 18px 22px 12px; border-bottom: 1px solid var(--line); }
+  .pane-head h2 { margin: 0; font-size: 16px; }
+  .pane-head .sub { margin: 3px 0 0; }
+  .settings-content { flex: 1; overflow-y: auto; padding: 16px 22px; }
+
+  /* 一行一项：左说明右控件 */
+  .row {
+    display: flex; align-items: center; gap: 14px; padding: 10px 2px;
+    border-bottom: 1px solid var(--line);
+  }
+  .row:last-child { border-bottom: 0; }
+  .row-text { flex: 1; min-width: 0; }
+  .row .t { font-size: 13.5px; }
+  .row .d { font-size: 11.5px; color: var(--dim); margin-top: 2px; }
+  /* 唤醒词每行还要放输入框、保存按钮和开关，压紧一点才能让四个助手
+     同时出现在弹窗里，不必滚动找最后一行。 */
+  #wakerows .row { padding: 7px 2px; }
+  #wakerows .d { display: none; }
+  /* 别名表：一行一个助手，输入框要占满剩余宽度才放得下整串别名。 */
+  #wakealiasrows .row { padding: 7px 2px; }
+  #wakealiasrows input.input-mid { flex: 1; min-width: 0; }
+  .row select, .row .input-mid {
+    width: 170px; flex: 0 0 auto; margin: 0; background: var(--surface2); border: 1px solid var(--line);
+    color: var(--text); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 12.5px; outline: none;
+  }
+  .row select:focus, .row .input-mid:focus { border-color: var(--accent); }
+  .btn.btn-tiny { padding: 5px 11px; font-size: 12px; border-radius: 7px; flex: 0 0 auto; }
+  /* 转码说明的「?」触发器：和提示文字并排，点一下才展开详情 */
+  .transcode-help { padding: 4px 2px; border-bottom: 0; }
+  .transcode-help .d { color: var(--muted); }
+  .btn.help-q {
+    width: 22px; height: 22px; flex: 0 0 auto; padding: 0;
+    border-radius: 50%; font-size: 13px; font-weight: 700; line-height: 1;
+    color: var(--accent); border-color: var(--accent-line);
+    background: var(--opt-on);
+  }
+  .btn.help-q:hover { background: var(--accent-line); }
+  #customfields { padding: 10px 2px 4px; }
+  #customfields input { margin-top: 6px; }
+  #customfields .hintline { margin-top: 8px; }
+
+  /* 开关：小滑块，比裸 checkbox 好看，纯 CSS */
+  input.switch {
+    appearance: none; -webkit-appearance: none; width: 38px; height: 22px; flex: 0 0 auto;
+    background: var(--surface2); border: 1px solid var(--line); border-radius: 12px;
+    position: relative; cursor: pointer; outline: none; transition: background .18s, border-color .18s;
+    margin: 0;
+  }
+  input.switch::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--muted); transition: left .18s, background .18s;
+  }
+  input.switch:checked { background: var(--switch-on); border-color: var(--accent); }
+  input.switch:checked::after { left: 18px; background: var(--accent); }
+
+  .tabpane { display: none; }
+  .tabpane.on { display: block; }
+
+  /* 设置分类用的卡片：一块设置一个卡片，以后加内容就加卡片 */
+  .card {
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
+    background: var(--surface2);
+  }
+  .card-title { font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .card .hintline { margin-top: 8px; }
+  .card .hintline.explain {
+    border-left: 2px solid var(--accent); background: var(--surface);
+    border-radius: 0 8px 8px 0; padding: 9px 11px; line-height: 1.65;
+  }
+  .card .hintline.explain b { color: var(--text); font-weight: 600; }
+  .card.card-todo { border-style: dashed; opacity: .75; }
+  .settings-main .foot {
+    padding: 12px 22px; border-top: 1px solid var(--line); margin-top: 0;
+  }
+  .opt {
+    display: flex; align-items: flex-start; gap: 9px; padding: 9px 11px; border-radius: 10px;
+    cursor: pointer; border: 1px solid transparent; margin-bottom: 4px;
+  }
+  .opt:hover { background: var(--hover); }
+  .opt.on { border-color: var(--accent); background: var(--opt-on); }
+  .opt input { margin-top: 3px; }
+  .opt .t { font-size: 13px; }
+  .opt .d { font-size: 11px; color: var(--dim); margin-top: 2px; }
+  /* 注意：这里不能包含 select 和 .input-mid——设置弹窗的行内控件
+     由 .row select / .row .input-mid 控制固定宽度；这条只管独立
+     输入框（登录链接、自定义接口字段）。 */
+  .modal input[type=text]:not(.input-mid), .modal input[type=password] {
+    width: 100%; background: var(--surface2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; outline: none; margin-top: 6px;
+  }
+  .modal input:focus, .modal select:focus { border-color: var(--accent); }
+  .modal .hintline { font-size: 11px; color: var(--dim); margin-top: 6px; line-height: 1.55; }
+  .modal .foot { display: flex; gap: 9px; justify-content: flex-end; margin-top: 18px; }
+  .btn {
+    padding: 7px 15px; border: 1px solid var(--line); background: var(--surface2); color: var(--text);
+    border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px;
+  }
+  .btn:hover { background: var(--btn-hover); }
+  /* 主题三选一：一段一格的按钮组，选中项用主色 */
+  .seg {
+    display: inline-flex; border: 1px solid var(--line);
+    border-radius: 9px; overflow: hidden; flex: none;
+  }
+  .seg-btn {
+    border: 0; background: transparent; color: var(--muted);
+    padding: 7px 14px; font-size: 13px; cursor: pointer; white-space: nowrap;
+  }
+  .seg-btn + .seg-btn { border-left: 1px solid var(--line); }
+  .seg-btn:hover { background: var(--hover); color: var(--text); }
+  .seg-btn.on { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+
+  /* ---------- 音乐文件夹选择器 ---------- */
+  .modal .row input.input-mid[type=password] { width: 170px; margin-top: 0; }
+  .folder-shortcuts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .folder-shortcuts .btn { padding: 4px 10px; font-size: 12px; }
+  .folder-crumb {
+    font-size: 12px; color: var(--muted); word-break: break-all; padding: 8px 10px;
+    background: var(--surface2); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .folder-list {
+    border: 1px solid var(--line); border-radius: 10px; max-height: 270px;
+    overflow-y: auto; background: var(--surface2); margin-top: 10px;
+  }
+  .folder-item {
+    display: flex; align-items: center; gap: 8px; padding: 9px 11px;
+    border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13px;
+  }
+  .folder-item:last-child { border-bottom: 0; }
+  .folder-item:hover { background: var(--hover); }
+  .folder-item .d { margin-left: auto; font-size: 11px; color: var(--dim); }
+  .src-badge {
+    font-size: 10.5px; font-weight: 500; color: var(--accent); border: 1px solid var(--accent);
+    border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 1px;
+  }
+
+  .toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
+    background: var(--surface2); border: 1px solid var(--line); color: var(--text);
+    padding: 9px 18px; border-radius: 10px; font-size: 13px; opacity: 0;
+    transition: opacity .25s; pointer-events: none; z-index: 99;
+  }
+  .toast.show { opacity: 1; }
+  .banner {
+    background: var(--err); color: var(--on-err); padding: 7px 16px;
+    text-align: center; font-size: 12.5px; font-weight: 600;
+  }
+
+  .appstore-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; padding:2px 0 12px; }
+  .store-tile { min-width:0; border:1px solid var(--line); border-radius:12px; background:var(--surface2); overflow:hidden; }
+  .store-tile h3 { font-size:13px; font-weight:600; margin:13px 12px 11px; }
+  .store-tile img { display:block; width:calc(100% - 20px); margin:0 10px; aspect-ratio:4/3; object-fit:contain; background:#080b12; border-radius:7px; }
+  .store-actions { display:flex; gap:6px; padding:12px 10px; }
+  .store-actions .btn { flex:1; min-width:0; padding:7px 4px; font-size:11.5px; border-radius:7px; }
+  .store-actions [data-store-toggle].added { color:var(--muted); }
+  .store-actions [data-store-toggle]:not(.added) { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .store-back { background:none; border:0; color:var(--muted); padding:2px 0 14px; cursor:pointer; font:inherit; font-size:12px; }
+  .store-back:hover { color:var(--text); }
+  .store-detail[hidden], [data-app-settings][hidden] { display:none!important; }
+  #appstore-status:empty { display:none; }
+
+</style>
+<script>
+  /* 主题要在第一帧之前定下来：否则深色偏好在刷新时会闪一下白底。
+     这里只读一次偏好，真正的切换逻辑在下面的脚本里。 */
+  (function () {
+    try {
+      var pref = localStorage.getItem("wb.console.theme") || "auto";
+      // URL 上带 ?theme=light/dark/auto 时以它为准，方便分享一个特定配色的链接
+      var q = new URLSearchParams(location.search).get("theme");
+      if (q === "light" || q === "dark" || q === "auto") pref = q;
+      var light = pref === "light" || (pref === "auto" && window.matchMedia
+        && window.matchMedia("(prefers-color-scheme: light)").matches);
+      document.documentElement.setAttribute("data-theme", light ? "light" : "dark");
+    } catch (e) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  })();
+</script>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ 左侧：助手列表 ============ -->
+  <aside class="sidebar">
+    <div class="side-head">
+      <span class="logo">若琪</span>
+      <span class="live-dot" id="livedot"></span>
+      <span class="spacer"></span>
+      <button class="icon-btn" title="刷新" id="btnrefresh">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+      </button>
+    </div>
+    <div class="agent-list" id="agentlist"></div>
+    <div class="side-foot">
+      <div class="mode-row">
+        <span class="mode-dot" id="modedot"></span>
+        <span id="modetext">直连：—</span>
+      </div>
+      <button class="mode-btn" id="btnsettings">⚙ 设置</button>
+    </div>
+  </aside>
+
+  <!-- ============ 主区 ============ -->
+  <section class="main">
+    <div class="topbar">
+      <span class="avatar" id="topavatar"></span>
+      <span class="title" id="toptitle">未选助手</span>
+      <span class="spacer"></span>
+      <span class="chip" id="chipstate">空闲</span>
+      <span class="chip live" id="chipmodel">模型 —</span>
+      <button class="icon-btn" title="复制全部对话" id="btncopy">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
+    </div>
+
+    <div class="chat" id="chat">
+      <!-- 每个助手一个对话面板，切换时只显示选中的那一个 -->
+      <div class="thread" id="thread"></div>
+    </div>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <textarea id="input" rows="1" placeholder="和若琪说话…" title="中文输入法按回车确认候选只会上屏，不会发送"></textarea>
+        <div class="cbar">
+          <span class="spacer"><span class="composer-hint" id="composerhint">Enter / ⌘↵ 发送 · Shift+Enter 换行 · 输入法候选回车只上屏</span></span>
+          <div class="rel">
+            <button class="model-btn" id="btnmodel">
+              <span id="modelLabel">模型</span>
+              <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="model-menu" id="modelmenu"></div>
+          </div>
+          <button class="send-btn" id="btnsend" title="发送 (Enter / ⌘Enter / Ctrl+Enter)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2.5 11 13"/><path d="M21.5 2.5 15.5 21.5 11 13 2.5 9.5 21.5 2.5Z"/></svg>
+          </button>
+        </div>
+        <div class="model-note" id="modelnote" style="display:none"></div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+<div class="banner" id="banner" style="display:none"></div>
+
+<!-- ============ 设置弹层：左侧分类导航 + 右侧内容 ============ -->
+<div class="modal-mask" id="settings">
+  <div class="modal modal-settings">
+    <div class="settings-body">
+      <!-- ── 左侧：分类导航 ── -->
+      <nav class="settings-nav" id="settingstabs">
+        <div class="nav-head">设置</div>
+        <button class="nav-item on" data-tab="direct">直连与模型</button>
+        <button class="nav-item" data-tab="auth">WorkBuddy 授权</button>
+        <button class="nav-item" data-tab="wake">唤醒词</button>
+        <button class="nav-item" data-tab="neko">猫娘</button>
+        <button class="nav-item" data-tab="music">音乐</button>
+        <button class="nav-item" data-tab="roon">Roon 遥控</button>
+        <button class="nav-item" data-tab="home">家居</button>
+        <button class="nav-item" data-tab="appearance">其它</button>
+        <button class="nav-item" data-tab="miniapps">应用商店</button>
+      </nav>
+
+      <!-- ── 右侧：内容区 ── -->
+      <div class="settings-main">
+        <div class="pane-head">
+          <h2 id="panetitle">直连与模型</h2>
+          <div class="sub" id="panesub">让若琪不喊「找助手」也能回答，并决定用哪个模型回答。</div>
+        </div>
+        <div class="settings-content">
+
+          <!-- 分类一：直连与模型 -->
+          <div class="tabpane on" id="tab-direct">
+            <div class="card">
+              <div class="card-title">接管范围</div>
+              <div class="row" data-mode-row>
+                <div class="row-text">
+                  <div class="t">接管方式</div>
+                  <div class="d">原厂和助手之间谁回答哪句话</div>
+                </div>
+                <select id="dmode"></select>
+              </div>
+              <div class="hintline" id="dmodehint"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">用哪个模型回答</div>
+              <div class="row" data-target-row="assistant">
+                <div class="row-text">
+                  <div class="t">用现有助手</div>
+                  <div class="d">复用该助手的模型与工具，对话独立保存</div>
+                </div>
+                <select id="diragent"></select>
+              </div>
+              <div class="row" data-target-row="custom">
+                <div class="row-text">
+                  <div class="t">自定义 OpenAI 兼容接口</div>
+                  <div class="d">任何 OpenAI 兼容服务都能接；Key 只存在电脑上</div>
+                </div>
+                <button class="btn btn-tiny" id="btn-custom-open">配置…</button>
+              </div>
+              <div id="customfields" style="display:none">
+                <input type="text" id="dirbase" placeholder="接口地址，如 https://api.deepseek.com/v1">
+                <input type="password" id="dirkey" placeholder="API Key（留空表示沿用已保存的）">
+                <input type="text" id="dirmodel" placeholder="模型名，如 deepseek-chat">
+                <div class="hintline">Key 只存在电脑的主机配置里，不会写进 APK 或浏览器。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 分类二：唤醒词 -->
+          <div class="tabpane" id="tab-wake">
+            <div class="card">
+              <div class="card-title">唤醒词</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">启用唤醒词</div>
+                  <div class="d">为每个助手注册专属唤醒词：喊「大肥鱼」直接找大肥鱼，「若琪」保持原样不受影响</div>
+                </div>
+                <input type="checkbox" id="wakeenable" class="switch">
+              </div>
+              <div class="hintline">唤醒词用<b>带声调的中文拼音</b>书写，例如 da4fei2yu2（大肥鱼）。1–4 个音节，每个音节以 1–5 的声调数字结尾。保存后由若琪的唤醒引擎本地生效。</div>
+            </div>
+            <div class="card" id="wakecard">
+              <div class="card-title">各助手的唤醒词</div>
+              <div id="wakerows"></div>
+              <div class="hintline">每行独立保存：改完拼音点这一行的「保存」才生效。开关只控制这一个词的启用与否。自定义助手可在此移除。</div>
+            </div>
+            <div class="card" id="wakehacard">
+              <div class="card-title">小家 · 局域网 HA 连接<span class="src-badge">可自定义 IP</span></div>
+              <div class="hintline">别的助手检测的是这台 Mac 上装了什么，小家连的是局域网里的 Home Assistant。这里按 IP 改地址，保存后立即生效、不用重启主机；唤醒词「小家」本身不受影响。</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">HA 地址</div>
+                  <div class="d">填 IP 或 IP:端口，例如 192.0.2.4:8123；也接受完整 http(s) 地址</div>
+                </div>
+                <input type="text" id="wakehahost" class="input-mid" style="flex:1;min-width:220px" placeholder="192.0.2.4:8123" autocomplete="off">
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">长期访问令牌</div>
+                  <div class="d">只换 IP 就留空，沿用已保存的令牌；换成另一台 HA 才需要在这里重填</div>
+                </div>
+                <input type="password" id="wakehatoken" class="input-mid" style="flex:1;min-width:220px" placeholder="留空 = 保持现有令牌" autocomplete="new-password">
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="d" id="wakehastatus">状态：尚未检测</div></div>
+                <button class="btn btn-tiny" id="wakehatest">仅检测</button>
+                <button class="btn btn-tiny primary" id="wakehasave">保存并检测</button>
+              </div>
+              <div class="hintline" id="wakehahint">检测只读取 HA 的状态接口，不会开关任何设备。AI 助手（agent_id）、播报开关在「设置 → 家居」里配置。</div>
+            </div>
+            <div class="card" id="wakealiascard">
+              <div class="card-title">别名表 · 所有助手<span class="src-badge">云端兜底</span></div>
+              <div id="wakealiasrows"></div>
+              <div class="row">
+                <div class="row-text"><div class="d" id="wakealiasstatus">设置已保存</div></div>
+                <button class="btn primary" id="wakealiasesave">保存别名</button>
+              </div>
+              <div class="hintline">唤醒后云端还会复核：识别文本要包含任一别名才不会判 activ fake（0.7 秒掐断收音）。用 | 分隔，留空表示不加别名；显示名自动排在第一位，不用重复填。别填「八」「大」这类常用单字，无关对话可能误过审。</div>
+              <div class="hintline">保存后<b>不需要重启</b>：主机配置立即更新并主动推一条 wake 命令，若琪每 0.7 秒轮询一次会自动重注册，最迟 45 秒兜底重同步。只有直接手改 config.local.json 文件才需要重启主机。</div>
+            </div>
+            <div class="card" id="wakedetectcard">
+              <div class="card-title">本机检测到的助手</div>
+              <div id="wakedetect"></div>
+              <div class="hintline">自动识别这台电脑上装了哪些内置助手；点「添加」把它登记为唤醒词助手（带默认拼音，可稍后改）。检测不到的，用下面的手动添加。<b>小家是例外</b>：它检测的是局域网里的 HA，IP 在上面的「小家 · 局域网 HA 连接」里改。</div>
+            </div>
+            <div class="card" id="wakeaddcard">
+              <div class="card-title">手动添加助手</div>
+              <div class="row">
+                <div class="row-text"><div class="t">助手标识</div><div class="d">英文 id，例如 mybot</div></div>
+                <input type="text" id="agentid" class="input-mid" placeholder="mybot">
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="t">显示名称</div><div class="d">喊这个词找它，例如 我的机器人</div></div>
+                <input type="text" id="agentname" class="input-mid" placeholder="我的机器人">
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="t">唤醒拼音</div><div class="d">带声调拼音，如 wode3ji1qi4ren2；可留空稍后填</div></div>
+                <input type="text" id="agentpinyin" class="input-mid" placeholder="wode3ji1qi4ren2">
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="t">别名（| 分隔）</div><div class="d">其它叫法，喊到也算；可留空</div></div>
+                <input type="text" id="agentaliases" class="input-mid" placeholder="机器人|小机">
+              </div>
+              <button class="btn primary" id="manualadd">添加助手</button>
+              <div class="hintline">自定义助手只用于唤醒词路由；要让它真的能回答，还需在 host 的 config 里配好对应后端。添加后这里会多出一行「唤醒词」，可填拼音或移除。</div>
+            </div>
+          </div>
+
+          <!-- 分类三：猫娘主动说话 -->
+          <div class="tabpane" id="tab-neko">
+            <div class="card">
+              <div class="card-title">主动说话</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">让猫娘主动开口</div>
+                  <div class="d">安静一会儿后，她会按自己的性格主动说一句。只在选中猫娘时生效，切到别的助手立即停止</div>
+                </div>
+                <input type="checkbox" id="nekoenable" class="switch">
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">间隔</div>
+                  <div class="d">两次主动说话之间至少隔多少分钟（1–240）</div>
+                </div>
+                <input type="number" id="nekointerval" min="1" max="240" class="input-mid">
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">静默时段</div>
+                  <div class="d">这段时间内不主动开口。支持跨夜，例如 23:00 → 08:00</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input type="time" id="nekoquietstart" class="input-mid">
+                  <span>到</span>
+                  <input type="time" id="nekoquietend" class="input-mid">
+                </div>
+              </div>
+              <div class="hintline">默认 00:00–11:00（即 24:00–11:00）。改完点「保存」才生效。当前若在静默时段内，自动主动不会触发，可用下面的按钮立即验证。</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="d" id="nekostatus">设置已保存</div>
+                </div>
+                <button class="btn primary" id="nekosave">保存</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">试一句</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">重播最近一句</div>
+                  <div class="d">只让若琪开口，用来测试设备端播报；不向 Mac 发请求，所以 Mac 上的猫娘不会跟着说</div>
+                </div>
+                <button class="btn" id="nekonow">说一句</button>
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">生成新话</div>
+                  <div class="d">让猫娘现场说一句新的。N.E.K.O. 会把回答在 Mac 上一起朗读，这是上游行为，本项目无法单独关闭</div>
+                </div>
+                <button class="btn" id="nekofresh">说句新的</button>
+              </div>
+              <div class="hintline">定时主动说话走「生成新话」路径，因此 Mac 端也会朗读。要彻底安静，需在 Mac 上关闭 N.E.K.O. 的回答朗读，或关掉上面的总开关。两个按钮都需要先选中猫娘。</div>
+            </div>
+          </div>
+
+          <!-- 分类：音乐与声音 -->
+          <div class="tabpane" id="tab-music">
+            <div class="card">
+              <div class="card-title">播放状态</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t" id="musicstate">未在播放</div>
+                  <div class="d">专辑封面与歌词显示在若琪屏幕上。播放时按「停止播放」可立刻中断</div>
+                </div>
+                <button class="btn" id="musicstop">停止播放</button>
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">试音</div>
+                  <div class="d">一声很轻的短提示音，用来确认设备音频通道是否通</div>
+                </div>
+                <button class="btn" id="musictest">试音</button>
+              </div>
+              <div class="hintline" id="musichint">第一次用建议先点「试音」。</div>
+            </div>
+            <div class="card">
+              <div class="card-title">随机连播与播放控制</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">让猫娘自己挑歌</div>
+                  <div class="d">从下面所有音乐文件夹里随机选，播完自动接下一首；若琪屏幕上会标注「猫娘挑的」</div>
+                </div>
+                <input type="checkbox" id="musicshuffle" class="switch">
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="d">不调用猫娘生成文字，Mac 端不会跟着朗读</div></div>
+              </div>
+              <div class="row">
+                <button class="btn btn-tiny" id="musicprev">上一首</button>
+                <button class="btn btn-tiny" id="musicpause">暂停 / 继续</button>
+                <button class="btn btn-tiny" id="musicnext">下一首</button>
+                <button class="btn btn-tiny" id="musicstop">停止</button>
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="d" id="musicvolumestatus">音量：等设备回报</div></div>
+                <button class="btn btn-tiny" id="musicvoldown">调小</button>
+                <button class="btn btn-tiny" id="musicvolup">调大</button>
+                <button class="btn btn-tiny" id="musicvolmute">静音 / 恢复</button>
+              </div>
+              <div class="hintline">播放中也可以直接说「暂停」「继续播放」「下一首」「上一首」「停止播放」。这些话由 bridge 接管，原厂与大模型都不会抢答；暂停时若琪屏幕会显示「已暂停」。音量也可以直接说「调大音量」「调小」「静音」「取消静音」「音量调到 50」。</div>
+            </div>
+            <div class="card">
+              <div class="card-title">语音点歌</div>
+              <div class="hintline">直接说「我想听晴天」「放一首周杰伦的晴天」「来首歌」。<b>优先本地曲库</b>，本地没有再走网易云音乐；成功直接开播，失败若琪只说一句短提示。点歌类说法已全部由 bridge 接管，原厂点歌不再响应。</div>
+              <div class="row">
+                <input type="text" id="musicparseinput" class="input-mid"
+                       placeholder="试试：我想听周杰伦的晴天"
+                       style="flex:1;min-width:0;width:auto;">
+                <button class="btn btn-tiny" id="musicparsebtn">解析试试</button>
+              </div>
+              <div class="hintline" id="musicparseresult">只解析、不播放，不会发出声音。</div>
+            </div>
+            <div class="card">
+              <div class="card-title">音乐库文件夹</div>
+              <div class="hintline">可以添加多个文件夹。最多向下扫描 5 层子目录；只索引文件名与大小，控制台不列曲目，上万首也不会卡。</div>
+              <div class="row transcode-help">
+                <div class="row-text"><div class="d">大于 24M 的歌曲文件会被转码</div></div>
+                <button class="btn btn-tiny help-q" id="transcodehelp" title="转码说明" aria-label="转码说明">?</button>
+              </div>
+              <div class="hintline explain" id="musictranscodehint" style="display:none">
+                <b>为什么要转码</b>：若琪是 Android 4.4，自带解码器只保证 16-bit / ≤48 kHz 的 FLAC，单次下载还有体积上限。高解析母带（24-bit / 96 kHz、几十 MB 一首）直接送过去会播放失败或中途退出，所以要在这一首即将播放时先转成设备必定能播的小文件。<br>
+                <b>什么样的文件会被转码</b>：本地音乐满足任意一条就会转 —— 位深 &gt;16 bit、采样率 &gt;48 kHz、单个文件 &gt;24 MB。转成 44.1 kHz / 256 kbps 的 AAC（约 7 MB），下载快也不挑格式；<b>16-bit / ≤48 kHz 且 ≤24 MB 的文件原样直连，无损不变</b>。AAC 有损只作用于这一份播放副本。<br>
+                <b>音乐库原始文件不会被改动</b>：全程只读源文件，转码副本写在本项目 runtime 缓存里、1 小时后自动清理；不改名、不覆盖、不移动、不删除任何一首歌，也不会往音乐文件夹里写索引或缓存。
+              </div>
+              <div id="musicfolders"></div>
+              <div class="row">
+                <input type="text" id="musicfolderinput" class="input-mid" placeholder="粘贴文件夹的绝对路径，或点「选择」" style="flex:1;min-width:220px">
+                <button class="btn" id="musicfolderpick">选择…</button>
+                <button class="btn" id="musicfolderadd">添加</button>
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="d" id="musicindexstatus">索引：读取中…</div></div>
+                <button class="btn" id="musicreindex">重建索引</button>
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="d" id="musicfolderstatus">已保存</div></div>
+                <button class="btn primary" id="musicfolderssave">保存文件夹</button>
+              </div>
+              <div class="hintline">添加或删除后要点「保存文件夹」才生效；保存会自动在后台重建索引。</div>
+            </div>
+            <div class="card">
+              <div class="card-title">本地曲库搜索</div>
+              <div class="row">
+                <input type="text" id="musiclocalquery" class="input-mid" placeholder="歌名 / 歌手 / 文件名" style="flex:1;min-width:220px">
+                <button class="btn" id="musiclocalsearch">搜索</button>
+              </div>
+              <div class="hintline" id="musiclocalhint">只返回匹配的前 30 首，不列出整个曲库。24bit / 96kHz 与大文件会自动转成若琪能播的格式。</div>
+              <div id="musiclocalresults"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">网易云音乐<span class="src-badge">在线音源</span></div>
+              <div class="hintline">在线点歌单独走 N.E.K.O. 的网易云音乐源，和上面的本地曲库分开管理。登录后上游可解锁会员 / 灰色歌曲；音频直链有时效，取不到会明确提示，不会换成别的歌。</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t" id="neteasestatus">账号状态：检测中…</div>
+                  <div class="d">Cookie 只发到本机 N.E.K.O. 的加密凭证库，本控制台不保存</div>
+                </div>
+                <button class="btn" id="neteaserefresh">刷新</button>
+              </div>
+              <div class="row">
+                <input type="password" id="neteasecookie" class="input-mid" placeholder="粘贴 MUSIC_U 或整段 Cookie" style="flex:1;min-width:220px">
+                <button class="btn primary" id="neteaselogin">登录</button>
+                <button class="btn" id="neteaselogout">退出登录</button>
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="d" id="neteasehint">网易云在上游只支持 Cookie 登录（扫码登录只开放给 B 站、小黑盒）。</div></div>
+                <button class="btn" id="neteasepage">凭证中心</button>
+              </div>
+              <div class="row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:14px">
+                <input type="text" id="musicquery" class="input-mid" placeholder="输入歌名或歌手" style="flex:1;min-width:200px">
+                <button class="btn" id="musicsearch">搜索</button>
+              </div>
+              <div id="musicresults"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">QQ 音乐<span class="src-badge">在线音源</span></div>
+              <div class="hintline">在线点歌单独走 N.E.K.O. 的 QQ 音乐源，和上面的本地曲库、网易云分开管理。登录后上游可解锁会员 / 灰色歌曲；音频直链有时效，取不到会明确提示，不会换成别的歌。</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t" id="qqmusicstatus">账号状态：检测中…</div>
+                  <div class="d">Cookie 只发到本机 N.E.K.O. 的加密凭证库，本控制台不保存</div>
+                </div>
+                <button class="btn" id="qqmusicrefresh">刷新</button>
+              </div>
+              <div class="row">
+                <input type="password" id="qqmusiccookie" class="input-mid" placeholder="粘贴 QQ 音乐 Cookie" style="flex:1;min-width:220px">
+                <button class="btn primary" id="qqmusiclogin">登录</button>
+                <button class="btn" id="qqmusiclogout">退出登录</button>
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="d" id="qqmusichint">QQ 音乐在上游只支持 Cookie 登录。</div></div>
+                <button class="btn" id="qqmusicpage">凭证中心</button>
+              </div>
+              <div class="row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:14px">
+                <input type="text" id="qqmusicquery" class="input-mid" placeholder="输入歌名或歌手" style="flex:1;min-width:200px">
+                <button class="btn" id="qqmusicsearch">搜索</button>
+              </div>
+              <div id="qqmusicresults"></div>
+            </div>
+          </div>
+
+          <!-- 分类三·五：Roon 遥控（独立页签，原在音乐里） -->
+          <div class="tabpane" id="tab-roon">
+            <div class="card">
+              <div class="card-title">Roon 显示与遥控<span class="src-badge">局域网</span></div>
+              <div class="hintline">若琪只做屏幕显示与语音遥控，声音由 Roon 输出到你的 AirPlay 设备，本机 MediaPlayer 不参与。首次使用：在 Roon → 设置 → 扩展 里找到「Rokid Allen Bridge」点 Enable。</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">启用 Roon 集成</div>
+                  <div class="d">默认开启；关闭后不再启动 Roon 桥进程</div>
+                </div>
+                <input type="checkbox" id="roonpower" class="switch">
+              </div>
+              <div class="hintline">没有 Roon 时关掉这个开关：不启动 Roon 桥进程、不轮询 Core、语音控制回到本地音乐；若琪屏幕上的 Roon 页也会收起。设置会保留，重启服务后依然生效。</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t" id="roonstatus">状态：检测中…</div>
+                  <div class="d" id="rooncore">Core：读取中…</div>
+                </div>
+                <button class="btn" id="roonrefresh">刷新</button>
+              </div>
+              <div class="row">
+                <select id="roonzone" class="input-mid" style="flex:1;min-width:180px"></select>
+                <button class="btn" id="roonzonesave">设为目标区域</button>
+              </div>
+              <div class="row">
+                <button class="btn btn-tiny" id="roonprev">上一首</button>
+                <button class="btn btn-tiny" id="roonplay">播放 / 暂停</button>
+                <button class="btn btn-tiny" id="roonnext">下一首</button>
+                <button class="btn btn-tiny" id="roonstop">停止</button>
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="d" id="roontrack">当前曲目：—</div></div>
+                <button class="btn btn-tiny" id="roonvoldown">调小</button>
+                <button class="btn btn-tiny" id="roonvolup">调大</button>
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="d">语音控制目标</div></div>
+                <select id="roontarget" class="input-mid">
+                  <option value="auto">自动（本地播放优先）</option>
+                  <option value="local">仅本地音乐</option>
+                  <option value="roon">仅 Roon</option>
+                </select>
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="d" id="roonhint">「自动」= 若琪自己在放歌就控本地；否则 Roon 区域在播时控 Roon。</div></div>
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">Roon 曲库目录（读内嵌歌词）</div>
+                  <div class="d">按 艺人 / 专辑 / 歌名 找到 Roon 正在播放的那个文件，读它自带的 LRC；留空保存 = 自动从音乐文件夹的上一级推断</div>
+                </div>
+              </div>
+              <div class="row">
+                <input id="roonlyricsroot" class="input-mid" style="flex:1;min-width:200px" placeholder="/Volumes/.../ROON">
+                <button class="btn btn-tiny" id="roonlyricspick">选择</button>
+                <button class="btn btn-tiny" id="roonlyricssave">保存</button>
+              </div>
+              <div class="hintline">Roon 的播放信息里没有歌词文本。若琪会先到「Roon 曲库目录」里按 艺人 / 专辑 / 歌名 定位同一个文件、读它内嵌的 LRC（和你 Roon 上看到的是同一份），再试本地点歌曲库和网易云，都匹配不到显示「暂无歌词」；曲库目录没挂载到这台电脑时读不到。语音点歌仍走本地曲库 / 网易云，不会搜 Roon 曲库。若琪无法作为 AirPlay 接收端（Android 4.4 没有 AirPlay 协议栈），所以不会出 Roon 的声音。</div>
+            </div>
+          </div>
+
+          <!-- 分类三·六：智能家居（Home Assistant，功能三） -->
+          <div class="tabpane" id="tab-home">
+            <div class="card">
+              <div class="card-title">Home Assistant 连接<span class="src-badge">局域网</span></div>
+              <div class="hintline">语音说「打开茶几灯」「主卧多少度」这类家居指令时交给 Home Assistant 的对话 agent 处理。首次使用：在 HA → 个人资料 → 长期访问令牌 生成一个令牌填到这里。令牌只存在这台电脑上，不会出现在日志或任何返回里。</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">启用智能家居</div>
+                  <div class="d">关闭后家居语音完全不接管，原厂与助手照旧</div>
+                </div>
+                <input type="checkbox" id="haenabled" class="switch">
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">HA 地址</div>
+                  <div class="d">例如 http://192.0.2.4:8123 ，不要带路径</div>
+                </div>
+              </div>
+              <div class="row">
+                <input id="habase" class="input-mid" style="flex:1;min-width:220px" placeholder="http://192.0.2.4:8123">
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">长期访问令牌</div>
+                  <div class="d" id="hatokenhint">留空保存 = 保持已有令牌；清除令牌用右边的按钮</div>
+                </div>
+                <button class="btn btn-tiny" id="hatokenclear">清除令牌</button>
+              </div>
+              <div class="row">
+                <input id="hatoken" type="password" class="input-mid" style="flex:1;min-width:220px" placeholder="留空则不修改" autocomplete="off">
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">控制结果播报</div>
+                  <div class="d">控制/查询的结果都会显示在若琪屏幕上；这里控制要不要再语音简短念一句（查询读数建议开）</div>
+                </div>
+                <input type="checkbox" id="haspeak" class="switch">
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">门控额外词</div>
+                  <div class="d">你习惯说的叫法，用竖线分隔，例如 茶几的灯|书屋灯。这些词参与「这句话是不是家居句」的判断。</div>
+                </div>
+              </div>
+              <div class="row">
+                <input id="hagateextra" class="input-mid" style="flex:1;min-width:220px" placeholder="留空则只用通用设备词与房间词">
+              </div>
+              <div class="row">
+                <div class="row-text"><div class="d" id="hastatus">状态：尚未测试</div></div>
+                <button class="btn btn-tiny" id="hatest">连接测试</button>
+                <button class="btn btn-tiny" id="hasave">保存</button>
+              </div>
+              <div class="hintline" id="hahint">连接测试只读取 HA 的状态接口，不会开关任何设备。</div>
+            </div>
+            <div class="card">
+              <div class="card-title">指令试发<span class="src-badge">会真实执行</span></div>
+              <div class="hintline">把一句话按语音同样路径发给 HA 的对话 agent（先过家居门控）。这会真实控制设备——比如先试「打开茶几灯」。不命中门控的句子会被拒绝且不发送。</div>
+              <div class="row">
+                <input id="hacmdtext" class="input-mid" style="flex:1;min-width:220px" placeholder="例如：打开茶几灯">
+                <button class="btn btn-tiny" id="hacmdsend">发送</button>
+              </div>
+              <div class="hintline" id="hacmdresult">还没有试发过。</div>
+            </div>
+          </div>
+
+          <!-- 分类四：其它（内部 id 沿用 appearance，端到端检查依赖它） -->
+          <div class="tabpane" id="tab-appearance">
+            <div class="card">
+              <div class="card-title">主题</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">深色 / 浅色</div>
+                  <div class="d">对话台配色；选「跟随系统」时随电脑的深浅设置自动切换</div>
+                </div>
+                <div class="seg" id="themeseg">
+                  <button class="seg-btn" data-theme-opt="dark">深色</button>
+                  <button class="seg-btn" data-theme-opt="light">浅色</button>
+                  <button class="seg-btn" data-theme-opt="auto">跟随系统</button>
+                </div>
+              </div>
+              <div class="hintline" id="themehint">当前：深色。设置存在这台电脑的浏览器里。</div>
+            </div>
+            <div class="card">
+              <div class="card-title">原厂语音<span class="src-badge">仅到期提示</span></div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">遮蔽原厂到期提示</div>
+                  <div class="d">只忽略「内容服务已到期，请续费」「音乐合作到期，请用蓝牙播放」这类原厂提示；麦克风听到自己播的提示时，不再当成你说的话，助手也就不会跟着回话、循环播报。</div>
+                </div>
+                <input type="checkbox" id="factorynoticemute" class="switch">
+              </div>
+              <div class="hintline">只遮蔽到期提示这一类话术，不会屏蔽闹钟、天气、报时等其它原厂语音；也不会让若琪不再念这句提示——那是若琪 APP 的内容服务状态，需要续费或恢复服务才能根治。关掉开关后，这类提示会照常进入助手。</div>
+              <div class="hintline" id="factorynoticehint">设置存在本机配置里，重启服务后依然生效。</div>
+            </div>
+          </div>
+
+          <!-- 分类三：WorkBuddy 授权 -->
+          <div class="tabpane" id="tab-auth">
+            <div class="card">
+              <div class="card-title" id="authtitle">巴蒂（WorkBuddy）· 登录状态</div>
+              <div id="authstate" class="d">还没有登录。</div>
+              <div class="hintline" id="authsub">用浏览器登录 WorkBuddy 账号，巴蒂才能替你干活。授权信息只存在电脑本机的 auth 文件里（权限 0600），不会进入 APK 或浏览器，也不会被提交到仓库。</div>
+            </div>
+            <div class="card" id="authlinkgrp" style="display:none">
+              <div class="card-title">登录链接</div>
+              <input type="text" id="authlink" readonly>
+              <div class="hintline">如果按钮没有自动打开浏览器，把这个链接复制到浏览器里打开也一样。</div>
+            </div>
+            <div class="card">
+              <div class="card-title">模型名</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">登录后默认用的模型</div>
+                  <div class="d">也可以稍后在输入框的模型菜单里改</div>
+                </div>
+                <input type="text" id="authmodel" placeholder="如 hy3" class="input-mid">
+              </div>
+            </div>
+          </div>
+
+          <!-- 小应用：查询类卡片，语音与控制台共用同一个 service -->
+          <div class="tabpane" id="tab-miniapps">
+<div id="appstore-grid" class="appstore-grid" aria-label="应用商店"><article class="store-tile" data-store-app="codex_usage"><h3>Codex 用量</h3><img src="/app-previews/codex_usage.svg" alt="Codex 用量界面预览" loading="lazy"><div class="store-actions"><button class="btn" data-store-toggle="codex_usage" disabled>读取中…</button><button class="btn" data-store-settings="codex_usage">设置</button></div></article><article class="store-tile" data-store-app="network_speed"><h3>网络速度</h3><img src="/app-previews/network_speed.png" alt="网络速度界面预览" loading="lazy"><div class="store-actions"><button class="btn" data-store-toggle="network_speed" disabled>读取中…</button><button class="btn" data-store-settings="network_speed">设置</button></div></article><article class="store-tile" data-store-app="system_resources"><h3>系统资源</h3><img src="/app-previews/system_resources.png" alt="系统资源界面预览" loading="lazy"><div class="store-actions"><button class="btn" data-store-toggle="system_resources" disabled>读取中…</button><button class="btn" data-store-settings="system_resources">设置</button></div></article><article class="store-tile" data-store-app="weather"><h3>天气查询</h3><img src="/app-previews/weather.png" alt="天气查询界面预览" loading="lazy"><div class="store-actions"><button class="btn" data-store-toggle="weather" disabled>读取中…</button><button class="btn" data-store-settings="weather">设置</button></div></article><article class="store-tile" data-store-app="clock"><h3>待机时钟</h3><img src="/app-previews/clock.png" alt="待机时钟界面预览" loading="lazy"><div class="store-actions"><button class="btn" data-store-toggle="clock" disabled>读取中…</button><button class="btn" data-store-settings="clock">设置</button></div></article>
+              <article class="store-tile" data-store-app="bambu_print">
+                <h3>打印进度</h3>
+                <img src="/app-previews/bambu_print.svg" alt="打印进度卡片预览" loading="lazy">
+                <div class="store-actions">
+                  <button class="btn" data-store-toggle="bambu_print" disabled>读取中…</button>
+                  <button class="btn" data-store-settings="bambu_print">设置</button>
+                </div>
+              </article>
+            </div><div id="appstore-status" class="hintline" role="status"></div><div id="appstore-detail" class="store-detail" hidden><button class="store-back" id="appstore-back">← 应用商店</button><section data-app-settings="codex_usage" hidden><div class="card">
+              <div class="card-title">Codex 用量</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">读取本机 Codex 登录账号</div>
+                  <div class="d">只读额度与 token 统计，不创建对话、不调用模型、不切换助手。只显示、不播报；卡片在若琪上停留 30 秒。</div>
+                </div>
+              </div>
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <button class="btn" id="miniquota">查询额度</button>
+                <button class="btn" id="minitokens">查询 token 用量</button>
+                <button class="btn" id="minitoday">今天用了多少</button>
+                <button class="btn" id="minihide">关闭卡片</button>
+              </div>
+              <div style="margin-top:8px;padding-top:9px;border-top:1px solid var(--line)">
+                <div style="font-size:11.5px;color:var(--dim)">自定义语音说法 · 多个用逗号分隔，点「保存语音」立即生效，无需重启</div>
+                <input type="text" id="minivoice-codex_usage" placeholder="如 看看我的额度，还剩多少龙女">
+                <details style="margin-top:5px">
+                  <summary id="minivoicesum-codex_usage" style="font-size:11px;color:var(--dim);cursor:pointer">内置说法</summary>
+                  <div class="hintline" id="minibuiltin-codex_usage">读取中…</div>
+                </details>
+                <div class="row" style="gap:8px;padding:6px 2px;border-bottom:0">
+                  <button class="btn primary" data-voice-save="codex_usage">保存语音</button>
+                  <div style="font-size:11.5px;color:var(--dim)" id="minivoicestatus-codex_usage"></div>
+                </div>
+              </div>
+            </div></section><section data-app-settings="network_speed" hidden><div class="card">
+              <div class="card-title">网络速度</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">读取这台 Mac 的实时下载 / 上传速率</div>
+                  <div class="d">按物理网卡上一秒的字节计数差值计算；双环按 20 MB/s 满量程填充，页脚会标出量程。</div>
+                </div>
+              </div>
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <button class="btn" id="mininet">查询网速</button>
+              </div>
+              <div style="margin-top:8px;padding-top:9px;border-top:1px solid var(--line)">
+                <div style="font-size:11.5px;color:var(--dim)">自定义语音说法 · 多个用逗号分隔，点「保存语音」立即生效，无需重启</div>
+                <input type="text" id="minivoice-network_speed" placeholder="如 看看宽带，网速快不快">
+                <details style="margin-top:5px">
+                  <summary id="minivoicesum-network_speed" style="font-size:11px;color:var(--dim);cursor:pointer">内置说法</summary>
+                  <div class="hintline" id="minibuiltin-network_speed">读取中…</div>
+                </details>
+                <div class="row" style="gap:8px;padding:6px 2px;border-bottom:0">
+                  <button class="btn primary" data-voice-save="network_speed">保存语音</button>
+                  <div style="font-size:11.5px;color:var(--dim)" id="minivoicestatus-network_speed"></div>
+                </div>
+              </div>
+            </div></section><section data-app-settings="system_resources" hidden><div class="card">
+              <div class="card-title">系统资源</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">读取这台 Mac 的 CPU 占用与内存用量</div>
+                  <div class="d">橙环是 CPU、紫环是内存；底部显示已用 / 总内存。全部只读，不执行任何写操作。</div>
+                </div>
+              </div>
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <button class="btn" id="minires">查询 CPU / 内存</button>
+              </div>
+              <div style="margin-top:8px;padding-top:9px;border-top:1px solid var(--line)">
+                <div style="font-size:11.5px;color:var(--dim)">自定义语音说法 · 多个用逗号分隔，点「保存语音」立即生效，无需重启</div>
+                <input type="text" id="minivoice-system_resources" placeholder="如 电脑累不累，看看处理器">
+                <details style="margin-top:5px">
+                  <summary id="minivoicesum-system_resources" style="font-size:11px;color:var(--dim);cursor:pointer">内置说法</summary>
+                  <div class="hintline" id="minibuiltin-system_resources">读取中…</div>
+                </details>
+                <div class="row" style="gap:8px;padding:6px 2px;border-bottom:0">
+                  <button class="btn primary" data-voice-save="system_resources">保存语音</button>
+                  <div style="font-size:11.5px;color:var(--dim)" id="minivoicestatus-system_resources"></div>
+                </div>
+              </div>
+            </div></section><section data-app-settings="weather" hidden><div class="card">
+              <div class="card-title">天气查询</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">原厂天气卡片 + 本机实时数据</div>
+                  <div class="d">拉起若琪自己的天气应用，数据由这台 Mac 从 Open-Meteo / wttr.in 双源取回喂给它；卡片、动画与播报都是原厂效果。设备需先跑过 scripts/weather_device_setup.py 接线。</div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">覆盖原厂天气查询</div>
+                  <div class="d">开启后天气类说法由本地技能接管；关闭后交还原厂云端处理（当前会回复内容到期提示）。点一下即存，重启后依然生效。</div>
+                </div>
+                <input type="checkbox" id="weatheroverride" class="switch">
+              </div>
+              <div class="hintline" id="weatheroverridehint">读取中…</div>
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <button class="btn" id="minweather">查询天气</button>
+                <button class="btn" id="weatherfix" disabled title="公开版保留原厂网络设置">原厂天气接线</button>
+                <div style="font-size:11.5px;color:var(--dim)" id="weatherfixstatus"></div>
+              </div>
+              <div style="margin-top:8px;padding-top:9px;border-top:1px solid var(--line)">
+                <div class="row">
+                  <div class="row-text">
+                    <div class="t">地区（城市）</div>
+                    <div class="d">留空 = 跟随设备上报的位置；填了城市就以它为准（本机按城市名查坐标）。与数据源一起点「保存设置」生效，无需重启。</div>
+                  </div>
+                </div>
+                <div class="row" style="gap:8px;flex-wrap:wrap">
+                  <input type="text" id="weathercity" placeholder="如 沈阳市（留空跟随设备位置）">
+                </div>
+                <div class="row">
+                  <div class="row-text">
+                    <div class="t">天气数据源（可选自定义）</div>
+                    <div class="d">主源须兼容 Open-Meteo 接口、备源须兼容 wttr.in（?format=j1）；任一留空即恢复内置默认。主源不可用时自动降级备源；城市名查坐标仍走 Open-Meteo 的 geocoding。</div>
+                  </div>
+                </div>
+                <div class="row" style="gap:8px;flex-wrap:wrap">
+                  <input type="text" id="weatherapiurl" placeholder="主源，默认 https://api.open-meteo.com/v1/forecast">
+                  <input type="text" id="weatherwttrurl" placeholder="备源，默认 https://wttr.in">
+                </div>
+                <div class="row" style="gap:8px;padding:6px 2px;border-bottom:0">
+                  <button class="btn primary" id="weathersettingsave">保存设置</button>
+                  <div style="font-size:11.5px;color:var(--dim)" id="weathersettingsstatus"></div>
+                </div>
+              </div>
+              <div style="margin-top:8px;padding-top:9px;border-top:1px solid var(--line)">
+                <div style="font-size:11.5px;color:var(--dim)">自定义语音说法 · 多个用逗号分隔，点「保存语音」立即生效，无需重启</div>
+                <input type="text" id="minivoice-weather" placeholder="如 外面啥情况，看看天">
+                <details style="margin-top:5px">
+                  <summary id="minivoicesum-weather" style="font-size:11px;color:var(--dim);cursor:pointer">内置说法</summary>
+                  <div class="hintline" id="minibuiltin-weather">读取中…</div>
+                </details>
+                <div class="row" style="gap:8px;padding:6px 2px;border-bottom:0">
+                  <button class="btn primary" id="weathervoicesave">保存语音</button>
+                  <div style="font-size:11.5px;color:var(--dim)" id="minivoicestatus-weather"></div>
+                </div>
+              </div>
+            </div></section><section data-app-settings="clock" hidden><div class="card">
+              <div class="card-title">待机时钟</div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">自研待机表盘 · 可换表盘</div>
+                  <div class="d">占坑原视频待机场景（type 4），15 秒无操作自动上屏；点按钮或喊「换个表盘」即时切换，选择重启后保留。表盘文件在设备 /sdcard/RokidClock/faces/，放 face.json 即可扩充。</div>
+                </div>
+              </div>
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <button class="btn" data-clock-face="grid">2×2 数字</button>
+                <button class="btn" data-clock-face="digital">电子日历</button>
+                <button class="btn" data-clock-face="orbit">双旋转刻度</button>
+                <button class="btn" data-clock-face="weekday">星期环</button>
+                <button class="btn" data-clock-face="minimal">双圆极简</button>
+                <button class="btn" data-clock-face="lagoon">蓝紫鳄鱼</button>
+                <button class="btn" data-clock-face="milk">牛奶派对</button>
+                <button class="btn" data-clock-face="forest">林间夜色</button>
+                <button class="btn" data-clock-face="roman">黑曜罗马</button>
+                <button class="btn" data-clock-face="next">换一个</button>
+              </div>
+              <div class="hintline" id="clockfacehint">读取中…</div>
+              <div style="margin-top:8px;padding-top:9px;border-top:1px solid var(--line)">
+                <div style="font-size:11.5px;color:var(--dim)">自定义语音说法 · 多个用逗号分隔，点「保存语音」立即生效，无需重启</div>
+                <input type="text" id="minivoice-clock" placeholder="如 换个皮肤，换个花样">
+                <details style="margin-top:5px">
+                  <summary id="minivoicesum-clock" style="font-size:11px;color:var(--dim);cursor:pointer">内置说法</summary>
+                  <div class="hintline" id="minibuiltin-clock">读取中…</div>
+                </details>
+                <div class="row" style="gap:8px;padding:6px 2px;border-bottom:0">
+                  <button class="btn primary" id="clockvoicesave">保存语音</button>
+                  <div style="font-size:11.5px;color:var(--dim)" id="minivoicestatus-clock"></div>
+                </div>
+              </div>
+            </div></section>
+            <section data-app-settings="bambu_print" hidden>
+              <form class="card" id="bambu-form" autocomplete="off">
+                <div class="card-title">拓竹局域网连接</div>
+                <div class="hintline">在打印机屏幕的网络设置查看 IP 和 LAN 访问码，在设备信息查看序列号。</div>
+                <label class="hintline" for="bambu-host">局域网 IP</label>
+                <input id="bambu-host" type="text" placeholder="192.168.1.50" required>
+                <label class="hintline" for="bambu-serial">打印机序列号</label>
+                <input id="bambu-serial" type="text" spellcheck="false" required>
+                <label class="hintline" for="bambu-code">LAN 访问码</label>
+                <input id="bambu-code" type="password" autocomplete="new-password" maxlength="8">
+                <div class="row" style="gap:8px;justify-content:flex-start">
+                  <button class="btn primary" type="submit">保存连接</button>
+                  <button class="btn" type="button" id="bambu-test">测试已保存的连接</button>
+                  <button class="btn" type="button" id="bambu-show">在若琪显示</button>
+                </div>
+                <div class="hintline" id="bambu-status" role="status"></div>
+              </form>
+              <div class="card">
+                <div class="card-title">语音查询</div>
+                <label class="hintline" for="minivoice-bambu_print">自定义说法，多个用逗号分隔</label>
+                <input id="minivoice-bambu_print" type="text" placeholder="如 看看打印机">
+                <details>
+                  <summary id="minivoicesum-bambu_print">内置说法</summary>
+                  <div class="hintline" id="minibuiltin-bambu_print"></div>
+                </details>
+                <div class="row" style="gap:8px;justify-content:flex-start">
+                  <button class="btn" data-voice-save="bambu_print">保存语音</button>
+                  <div class="hintline" id="minivoicestatus-bambu_print"></div>
+                </div>
+              </div>
+            </section>
+            <div id="appstore-query-notes"><div class="hintline" id="miniresult" style="margin-top:10px">点按钮查询，或喊「查询龙女额度」「查询网速」「查询系统资源」；只显示不播报，卡片停留 30 秒。</div>
+            <div class="hintline" id="miniappcardactions" style="margin-top:6px">卡片动作与刷新说法读取中…</div>
+            <div class="hintline" style="margin-top:6px">内置说法优先于自定义说法；自定义说法只打开对应卡片的默认查询，不会新增刷新或关闭动作。留空保存即清空该卡片的自定义说法。</div></div></div>
+          </div>
+
+        </div>
+        <div class="foot">
+          <button class="btn" id="authlogin" style="display:none">浏览器登录</button>
+          <button class="btn" id="settingscancel">关闭</button>
+          <button class="btn primary" id="settingssave">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 音乐文件夹选择器 ============ -->
+<div class="modal-mask" id="folderpicker">
+  <div class="modal" style="width:620px">
+    <h2>选择音乐文件夹</h2>
+    <div class="sub">从这台电脑里挑一个文件夹，路径自动填入。添加后最多向下扫描 5 层子目录。</div>
+    <div class="folder-shortcuts" id="foldershortcuts"></div>
+    <div class="row" style="gap:8px">
+      <button class="btn" id="folderup">↑ 上一级</button>
+      <div class="folder-crumb" id="foldercrumb" style="flex:1">读取中…</div>
+      <button class="btn" id="foldernative">系统选择框</button>
+    </div>
+    <div class="folder-list" id="folderlist"></div>
+    <div class="hintline" id="folderhint">点文件夹名进入下一层；点「选这个文件夹」把当前目录加进音乐库。</div>
+    <div class="foot">
+      <button class="btn" id="foldercancel">取消</button>
+      <button class="btn primary" id="folderchoose">选这个文件夹</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const params = new URLSearchParams(location.search);
+// The token is remembered in localStorage, not sessionStorage, so it
+// survives closing the tab and restarting the browser. That is what makes
+// the plain address -- http://127.0.0.1:8765/console -- work from then on:
+// it can be bookmarked and never has to be typed again.
+//
+// When the address carries no token and the browser has none stored, the
+// page asks the host for one. Only a request that came from this computer
+// is answered, so opening the console from another machine still needs the
+// address with the token in it.
+let TOKEN = params.get("token") || localStorage.getItem("rokid_token") || "";
+if (TOKEN) localStorage.setItem("rokid_token", TOKEN);
+const H = () => TOKEN ? {"Authorization": "Bearer " + TOKEN, "Content-Type": "application/json"}
+                       : {"Content-Type": "application/json"};
+const $ = id => document.getElementById(id);
+
+/* Ask the host for the token. Only this computer is answered, so a console
+   opened from elsewhere still has to use the address with the token in it. */
+async function fetchToken() {
+  try {
+    const r = await fetch("/console-token", { headers: { "Accept": "application/json" } });
+    if (!r.ok) return "";
+    const j = await r.json();
+    return (j && j.token) || "";
+  } catch (e) {
+    return "";
+  }
+}
+
+let agents = {};
+let art = [];               // 哪些角色已经有画好的头像
+let selected = "";          // 左侧选中的助手 id，空表示「若琪直连」
+let currentModel = "";
+let modelList = [];
+let lastSeq = 0;
+let directInfo = null;
+let wakeInfo = null;
+let wakeScan = null;
+// 每个助手一份对话：agent id -> 已画出的条目。
+// "direct" 是若琪自己，"none" 是与助手无关的系统提示。
+const threads = {};
+// 已经画过的条目序号：全量刷新和增量轮询可能拿到同一条，
+// 用它去重，免得同一条消息出现两遍。
+const seen = new Set();
+// 每个助手在磁盘上一共存了多少条，以及首屏之外还有没有更早的。
+// 首屏只取最近几十条，「更早的对话」按钮按需要继续往前翻。
+let historyCounts = {};
+let historyMore = {};
+// 每个助手真正说过多少句（只数 agent 回复）。系统提示「已切换到 X」
+// 和你说的话也存着、也能翻看，但不算助手发言，不能混进这个数字。
+let speechCounts = {};
+// 主机这一轮是谁。主机重启后它会换一个新的身份，而对话的编号
+// 也从头开始：拿着旧编号去问"从哪一条之后"，新的消息就永远问不到
+// ——页面看起来就像收不到消息了，只能靠刷新救。
+// 所以记住主机身份，变了就把对话整个重画一遍。
+let hostInstance = "";
+
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), 1900);
+}
+/* banner 用来报错误。错误一旦出现就一直留着，不许被别的轮询
+   成功顺手抹掉——否则页面停在空白状态时用户什么也看不到，只以为
+   控制台坏了。
+   错误按来源分开：拉对话失败不该被拉状态成功抹掉，反过来也一样。
+   只有真的恢复了这个来源，才撤掉它自己的提示。 */
+const bannerErrors = new Map();
+function bannerError(source, msg) {
+  bannerErrors.set(source, msg);
+  renderBanner();
+}
+function bannerClear(source) {
+  if (!bannerErrors.has(source)) return;
+  bannerErrors.delete(source);
+  renderBanner();
+}
+function renderBanner() {
+  const b = $("banner");
+  if (!bannerErrors.size) {
+    b.style.display = "none"; b.textContent = ""; return;
+  }
+  b.style.display = "block";
+  b.textContent = Array.from(bannerErrors.values()).join("\u3000");
+}
+function banner(msg, isError) {
+  if (isError) { bannerError("general", msg); return; }
+  bannerClear("general");
+}
+function fmtTime(ts) { return new Date(ts * 1000).toLocaleTimeString("zh-CN", { hour12: false }); }
+function escapeHtml(text) {
+  return String(text == null ? "" : text).replace(/[&<>"]/g,
+    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+/* token 失效时（比如配置被重建），页面要能自己恢复，而不是一直卡在 401 */
+const TOKEN_HINT = "token 已失效。请从 Mac 的 Rokid-Allen-Unbricked 重新打开控制台";
+function forgetToken() {
+  TOKEN = "";
+  try { localStorage.removeItem("rokid_token"); } catch (e) {}
+}
+
+/* 401 之后先向本机重新要一次 token，再重试原来的请求。
+   记住的那个 token 可能是旧的（配置重建过、或者换了一次配置），
+   而本机的 /console-token 永远给得出当前的 token —— 所以自己就能救回来，
+   不必让用户再去找那个带 token 的地址。 */
+let refreshing = null;
+async function refreshToken() {
+  if (!refreshing) {
+    refreshing = fetchToken().then(t => {
+      refreshing = null;
+      if (t) {
+        TOKEN = t;
+        try { localStorage.setItem("rokid_token", t); } catch (e) {}
+      }
+      return t;
+    }).catch(() => { refreshing = null; return ""; });
+  }
+  return refreshing;
+}
+
+async function apiGet(path) {
+  const r = await fetch(path, { headers: H() });
+  if (r.status === 401) {
+    const fresh = await refreshToken();
+    if (fresh) {
+      const again = await fetch(path, { headers: H() });
+      if (again.ok) return again.json();
+    }
+    forgetToken();
+    throw new Error(TOKEN_HINT);
+  }
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+async function apiPost(path, body) {
+  const send = () => fetch(path, { method: "POST", headers: H(), body: JSON.stringify(body) });
+  let r = await send();
+  let j = await r.json().catch(() => ({}));
+  if (r.status === 401) {
+    const fresh = await refreshToken();
+    if (fresh) {
+      r = await send();
+      j = await r.json().catch(() => ({}));
+    }
+    if (r.status === 401) {
+      forgetToken();
+      throw new Error(TOKEN_HINT);
+    }
+  }
+  if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+  return j;
+}
+
+/* 头像用的是 Codex 设计好的那套图，按角色目录取 */
+function faceUrl(design, state) {
+  if (!design || art.indexOf(design) < 0) return "";
+  return state ? "/avatars/" + design + "-" + state + ".png" : "/avatars/" + design + ".png";
+}
+/* 还没出图的助手用首字顶上，免得留一个空圈 */
+function setFace(el, design, state, fallback) {
+  const url = faceUrl(design, state);
+  if (url) {
+    el.style.backgroundImage = "url('" + url + "')";
+    el.textContent = "";
+  } else {
+    el.style.backgroundImage = "";
+    el.textContent = fallback || "";
+  }
+}
+function agentName(agentId) {
+  if (agentId === "direct") return "若琪";
+  return (agents[agentId] || {}).name || agentId || "若琪";
+}
+
+/* ---------- 左侧助手列表 ---------- */
+// 别的助手那边来了新消息时，这个助手旁边挂一个数字角标。
+function unreadBadge(key) {
+  const t = threads[key];
+  if (!t || !t.unread) return document.createElement("span");
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  badge.textContent = t.unread > 99 ? "99+" : String(t.unread);
+  badge.title = t.unread + " 条新回复";
+  return badge;
+}
+
+// 侧栏名字后面挂着这个助手一共说过几句。只数 agent 回复：
+// 「已切换到 X」和你自己说的话都留在磁盘上、也能翻看，但不是它说的。
+function appendHistoryCount(nameEl, key) {
+  const n = Number(speechCounts[key] || 0);
+  if (!n) return;
+  const span = document.createElement("span");
+  span.className = "hist-count";
+  span.textContent = n + " 句";
+  span.title = "共 " + n + " 句回复，可在对话顶部翻看更早的";
+  nameEl.appendChild(span);
+}
+
+function renderAgents() {
+  const list = $("agentlist");
+  list.innerHTML = "";
+
+  // 若琪直连永远排在最前：它就是音箱本身。
+  const direct = document.createElement("div");
+  direct.className = "agent-item" + (selected === "direct" ? " active" : "");
+  const dIcon = document.createElement("div");
+  dIcon.className = "avatar";
+  setFace(dIcon, "rokid", "", "琪");
+  const dName = document.createElement("div");
+  dName.className = "agent-name";
+  dName.textContent = "若琪（直连）";
+  appendHistoryCount(dName, "direct");
+  const dSub = document.createElement("div");
+  dSub.className = "agent-sub";
+  // 若琪自己那一份对话的摘要：有话说就显示最后一句。
+  const dPreview = threadPreview("direct");
+  dSub.textContent = dPreview || "自己回答";
+  dSub.title = dPreview;
+  const dBox = document.createElement("div");
+  dBox.style.minWidth = "0";
+  dBox.appendChild(dName);
+  dBox.appendChild(dSub);
+  direct.appendChild(dIcon);
+  direct.appendChild(dBox);
+  direct.appendChild(unreadBadge("direct"));
+  direct.onclick = () => selectAgent("direct");
+  list.appendChild(direct);
+
+  const enabled = [], disabled = [];
+  const ordered = Object.entries(agents);
+  const claudeIndex = ordered.findIndex(([id]) => id === "claude");
+  if (claudeIndex >= 0 && ordered.some(([id]) => id === "dsh")) {
+    const [claude] = ordered.splice(claudeIndex, 1);
+    ordered.splice(ordered.findIndex(([id]) => id === "dsh"), 0, claude);
+  }
+  ordered.forEach(([id, info]) =>
+    (info.enabled ? enabled : disabled).push([id, info]));
+  const groups = [];
+  if (enabled.length) groups.push(["已接入", enabled]);
+  if (disabled.length) groups.push(["未接入", disabled]);
+  groups.forEach(([label, items]) => {
+    const h = document.createElement("div");
+    h.className = "group-label";
+    h.textContent = label;
+    list.appendChild(h);
+    items.forEach(([id, info]) => {
+      const row = document.createElement("div");
+      row.className = "agent-item" + (id === selected ? " active" : "") +
+                      (info.enabled ? "" : " disabled");
+      const av = document.createElement("div");
+      av.className = "avatar";
+      setFace(av, info.design, info.state, (info.name || "?").slice(0, 1));
+      const box = document.createElement("div");
+      box.style.minWidth = "0";
+      const nm = document.createElement("div");
+      nm.className = "agent-name";
+      nm.textContent = info.name;
+      appendHistoryCount(nm, id);
+      const sub = document.createElement("div");
+      sub.className = "agent-sub";
+      // 这一行显示的是这个助手自己那份对话的最后一句。
+      const preview = threadPreview(id);
+      sub.textContent = info.enabled ? (preview || stateLabel(info.state)) : "尚未接入";
+      sub.title = preview;
+      box.appendChild(nm);
+      box.appendChild(sub);
+      row.appendChild(av);
+      row.appendChild(box);
+      row.appendChild(unreadBadge(id));
+      if (!info.enabled) {
+        const tag = document.createElement("span");
+        tag.className = "agent-tag";
+        tag.textContent = "未接入";
+        row.appendChild(tag);
+        row.onclick = () => toast(info.name + " 尚未接入");
+      } else if (info.connection && info.auth && !info.auth.configured) {
+        // A connected assistant that has not been signed in yet: point the
+        // user at the login panel instead of letting them talk to it.
+        const tag = document.createElement("span");
+        tag.className = "agent-tag";
+        tag.textContent = "待登录";
+        tag.style.cursor = "pointer";
+        tag.style.borderColor = "var(--warn)";
+        tag.style.color = "var(--warn)";
+        tag.onclick = (e) => {
+          e.stopPropagation();
+          openSettings();
+          showSettingsTab("auth");
+        };
+        row.appendChild(tag);
+        row.onclick = () => selectAgent(id);
+      } else {
+        row.onclick = () => selectAgent(id);
+      }
+      list.appendChild(row);
+    });
+  });
+
+  const cur = selected === "direct" ? null : agents[selected];
+  $("toptitle").textContent = cur ? cur.name : "若琪（直连）";
+  const topAvatar = $("topavatar");
+  setFace(topAvatar, cur ? cur.design : "rokid", cur ? cur.state : "", "琪");
+}
+
+const STATE_LABELS = {
+  idle: "待机", listening: "在听", thinking: "思考中", working: "执行中",
+  speaking: "说话中", confirmation: "等确认", done: "完成", error: "出错"
+};
+function stateLabel(state) { return STATE_LABELS[state] || "待机"; }
+
+async function selectAgent(id) {
+  // 切换助手：电脑端选的助手同时也是音箱当前在用的助手，
+  // 所以语音和手动输入说的是同一个对象。
+  selected = id;
+  // 每个助手一份对话：切过去看的是那一份。
+  syncThreadVisibility();
+  renderAgents();
+  placeholder();
+  $("chat").scrollTop = $("chat").scrollHeight;
+  try {
+    await apiPost("/api/agent", { agent: id, quiet: true });
+  } catch (e) {
+    toast("切换失败：" + e.message);
+  }
+  await loadModels();
+}
+
+/* ---------- 模型 ---------- */
+let modelInUse = "";
+async function loadModels() {
+  const agent = selected === "direct" ? "direct" : selected;
+  if (!agent) { modelList = []; currentModel = ""; modelInUse = ""; renderModelChip(); renderModelMenu(); return; }
+  try {
+    const data = await apiGet("/api/model?agent=" + encodeURIComponent(agent));
+    currentModel = data.current || "";
+    modelList = data.models || [];
+    modelInUse = data.in_use || "";
+  } catch (e) {
+    currentModel = "";
+    modelList = [];
+    modelInUse = "";
+  }
+  renderModelChip();
+  renderModelMenu();
+}
+
+function renderModelChip() {
+  const label = currentModel ? currentModel : "模型";
+  $("modelLabel").textContent = label;
+  $("chipmodel").innerHTML = "模型 <b>" + escapeHtml(currentModel || "—") + "</b>";
+  // The endpoint may have answered with another model than the one that
+  // was asked for. Saying so beats a silent swap.
+  const note = $("modelnote");
+  if (!note) return;
+  if (modelInUse && currentModel && modelInUse !== currentModel) {
+    note.textContent = "上次实际由 " + modelInUse + " 回答（所选模型不被该端点支持）";
+    note.style.display = "";
+  } else {
+    note.style.display = "none";
+  }
+}
+
+function renderModelMenu() {
+  const menu = $("modelmenu");
+  menu.innerHTML = "";
+  const who = selected === "direct" ? "若琪 · 直连模型" : (agents[selected] || {}).name;
+  const head = document.createElement("div");
+  head.className = "mh";
+  head.textContent = (who || "助手") + " · 可用模型";
+  menu.appendChild(head);
+
+  const list = modelList || [];
+  if (!list.length) {
+    const none = document.createElement("div");
+    none.className = "mh";
+    none.textContent = "没有可列出的模型，可在下面直接填写";
+    menu.appendChild(none);
+  }
+  list.forEach(name => {
+    const it = document.createElement("div");
+    it.className = "mi" + (name === currentModel ? " cur" : "");
+    const nm = document.createElement("span");
+    nm.textContent = name;
+    it.appendChild(nm);
+    if (name === currentModel) {
+      const d = document.createElement("span");
+      d.className = "desc";
+      d.textContent = "当前";
+      it.appendChild(d);
+    }
+    it.onclick = async () => {
+      $("modelmenu").classList.remove("open");
+      await applyModel(name);
+    };
+    menu.appendChild(it);
+  });
+
+  // 手动填写：任何模型名都能用，不受列表限制
+  const custom = document.createElement("div");
+  custom.className = "custom";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "手动填写模型名，回车应用";
+  input.value = currentModel || "";
+  input.onkeydown = async e => {
+    if (e.key !== "Enter") return;
+    e.stopPropagation();
+    const value = input.value.trim();
+    $("modelmenu").classList.remove("open");
+    if (value) await applyModel(value);
+  };
+  custom.appendChild(input);
+  menu.appendChild(custom);
+}
+
+async function applyModel(name) {
+  const agent = selected === "direct" ? "direct" : selected;
+  if (!agent) return;
+  try {
+    await apiPost("/api/model", { agent: agent, model: name });
+    currentModel = name;
+    renderModelChip();
+    renderModelMenu();
+    toast("模型已切换：" + name);
+    // The conversation that ran on the old model is dropped, so the next
+    // question starts a fresh one on the new model.
+    await loadModels();
+  } catch (e) {
+    toast("切换失败：" + e.message);
+  }
+}
+
+/* ---------- 对话流：每个助手一份 ---------- */
+// 一条记录属于哪一份对话：没有助手的是若琪自己（直连），
+// 系统提示（none）说的是设备本身，也归到若琪那一栏。
+function threadKey(agent) {
+  const id = String(agent || "").trim();
+  if (!id || id === "none") return "direct";
+  return id;
+}
+function activeThreadKey() { return threadKey(selected); }
+
+function threadOf(key) {
+  if (!threads[key]) {
+    const pane = document.createElement("div");
+    pane.className = "pane";
+
+    // 「更早的对话」按钮放在最上面。首屏只拿最近几十条，
+    // 往前翻的时候从这里把更早的记录插进来。
+    const olderWrap = document.createElement("div");
+    olderWrap.className = "older-wrap";
+    olderWrap.style.display = "none";
+    const olderBtn = document.createElement("button");
+    olderBtn.className = "older-btn";
+    olderBtn.type = "button";
+    olderBtn.onclick = () => loadOlder(key);
+    olderWrap.appendChild(olderBtn);
+    pane.appendChild(olderWrap);
+
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.innerHTML = '<div class="big">还没有对话</div>在左侧选一个助手，然后在这里说话或直接键入。';
+    pane.appendChild(empty);
+
+    // 消息都放在这一个容器里，翻页时插到它的最前面。
+    const list = document.createElement("div");
+    pane.appendChild(list);
+    $("thread").appendChild(pane);
+    threads[key] = {key: key, pane: pane, list: list, empty: empty,
+                    olderWrap: olderWrap, olderBtn: olderBtn,
+                    items: [], unread: 0, oldest: null,
+                    hasMore: false, loading: false, total: 0};
+  }
+  return threads[key];
+}
+
+// 连续重复的系统提示（比如反复「已切换到 巴蒂」）只占一行，末尾写 ×N。
+// 任意一条真实对话会打断这一组，之后重新成组。分组状态直接记在 DOM 上，
+// 首屏、增量轮询、往前翻页三条路径都能自然接上，也不用额外维护游标。
+function placeSystem(t, item, atFront) {
+  const neighbour = atFront ? t.list.firstElementChild : t.list.lastElementChild;
+  const group = neighbour && neighbour.classList.contains("system-group")
+    ? neighbour : null;
+  if (group && group.dataset.message === item.message) {
+    const n = (Number(group.dataset.count) || 1) + 1;
+    group.dataset.count = String(n);
+    group.querySelector(".bubble").textContent = item.message + " ×" + n;
+    return;
+  }
+  const d = document.createElement("div");
+  d.className = "msg system system-group";
+  d.dataset.message = item.message;
+  d.dataset.count = "1";
+  const b = document.createElement("div");
+  b.className = "bubble";
+  b.textContent = item.message;
+  d.appendChild(b);
+  if (atFront) t.list.insertBefore(d, t.list.firstChild);
+  else t.list.appendChild(d);
+}
+
+// 把一条更早的记录插到这一栏的最前面，且不让画面跳动。
+function prependEntry(item, t) {
+  const seq = Number(item.seq || 0);
+  if (seq && seen.has(seq)) return false;
+  if (seq) seen.add(seq);
+  if (item.role === "system") placeSystem(t, item, true);
+  else t.list.insertBefore(buildEntry(item), t.list.firstChild);
+  t.items.unshift(item);
+  if (seq && (t.oldest === null || seq < t.oldest)) t.oldest = seq;
+  return true;
+}
+
+function updateOlderButton(key) {
+  const t = threads[key];
+  if (!t) return;
+  t.hasMore = !!historyMore[key];
+  t.total = Number(historyCounts[key] || 0);
+  const show = t.hasMore && t.items.length > 0;
+  t.olderWrap.style.display = show ? "block" : "none";
+  if (show) {
+    const unread = Math.max(0, t.total - t.items.length);
+    t.olderBtn.textContent = unread
+      ? "更早的对话（还有 " + unread + " 条）" : "更早的对话";
+    t.olderBtn.disabled = t.loading;
+  }
+}
+
+async function loadOlder(key) {
+  const t = threadOf(key);
+  if (t.loading || t.oldest === null) return;
+  t.loading = true;
+  t.olderBtn.disabled = true;
+  const before = t.oldest;
+  const chat = $("chat");
+  const heightBefore = chat.scrollHeight;
+  try {
+    const data = await apiGet("/api/history?agent=" + encodeURIComponent(key) +
+                              "&before=" + before + "&limit=50");
+    // 服务端给的是按时间排好的更早记录，倒着插，最上面才是最老的。
+    const rows = (data.items || []).slice().reverse();
+    rows.forEach(item => prependEntry(item, t));
+    historyMore[key] = !!data.has_more;
+    historyCounts[key] = Number(data.total || t.total);
+    // 上面加了多少高度，就把滚动位置往下挪多少，眼睛还看着刚才那条。
+    chat.scrollTop += chat.scrollHeight - heightBefore;
+    if (t.empty) { t.empty.style.display = "none"; t.empty = null; }
+    bannerClear("history");
+  } catch (e) {
+    bannerError("history", "加载更早的对话失败：" + e.message);
+  } finally {
+    t.loading = false;
+    updateOlderButton(key);
+    renderAgents();
+  }
+}
+
+function buildEntry(item) {
+  const role = item.role;
+  if (role === "system") {
+    const d = document.createElement("div");
+    d.className = "msg system";
+    const b = document.createElement("div");
+    b.className = "bubble";
+    b.textContent = item.message;
+    d.appendChild(b);
+    return d;
+  }
+  const isUser = role === "user";
+  const d = document.createElement("div");
+  d.className = "msg " + (isUser ? "user" : "agent");
+  const head = document.createElement("div");
+  head.className = "head";
+  if (!isUser) {
+    const av = document.createElement("div");
+    av.className = "avatar";
+    const info = agents[item.agent] || {};
+    // 直连/原厂播报（天气卡提示等用 log_transcript("agent", "", ...) 记的）
+    // 没有 agent id，info.design 为空会退化成首字头像。它们都属于若琪，
+    // 统一用 rokid 头像，跟顶栏和侧栏的直连头像一致。
+    const isDirect = !item.agent || item.agent === "direct";
+    setFace(av, isDirect ? "rokid" : info.design,
+            isDirect ? "" : info.state,
+            (agentName(item.agent) || "?").slice(0, 1));
+    head.appendChild(av);
+  }
+  const who = document.createElement("span");
+  who.className = "who";
+  who.textContent = isUser ? "你" : agentName(item.agent);
+  const ts = document.createElement("span");
+  ts.className = "ts";
+  ts.textContent = fmtTime(item.at);
+  head.appendChild(who);
+  head.appendChild(ts);
+  const bub = document.createElement("div");
+  bub.className = "bubble";
+  bub.textContent = item.message;
+  d.appendChild(head);
+  d.appendChild(bub);
+  return d;
+}
+
+// 把一条记录放进它自己那一份对话里。已经画过的不再画。
+// isNew 只给增量轮询用：首屏拉回来的都是历史，不该算「新消息」。
+function addEntry(item, isNew) {
+  const seq = Number(item.seq || 0);
+  if (seq && seen.has(seq)) return false;
+  if (seq) seen.add(seq);
+  const key = threadKey(item.agent);
+  const t = threadOf(key);
+  if (item.role === "system") placeSystem(t, item, false);
+  else t.list.appendChild(buildEntry(item));
+  t.items.push(item);
+  if (seq && (t.oldest === null || seq < t.oldest)) t.oldest = seq;
+  if (t.empty) { t.empty.style.display = "none"; t.empty = null; }
+  // 只有「新到的助手回复」才算未读通知。系统提示（「已切换到 X」）
+  // 和你说的话都不通知；首屏历史也不通知。看那一栏时由
+  // syncThreadVisibility() 清零。
+  if (isNew && item.role === "agent" && key !== activeThreadKey()) {
+    t.unread += 1;
+  }
+  return true;
+}
+
+function renderEntries(items, isNew) {
+  if (!items || !items.length) return;
+  items.forEach(item => {
+    if (!addEntry(item, isNew)) return;
+    const key = threadKey(item.agent);
+    historyCounts[key] = Number(historyCounts[key] || 0) + 1;
+    if (item.role === "agent") {
+      speechCounts[key] = Number(speechCounts[key] || 0) + 1;
+    }
+  });
+  Object.keys(threads).forEach(updateOlderButton);
+  syncThreadVisibility();
+  renderAgents();
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+
+// 只有选中助手的那一份对话是可见的。
+function syncThreadVisibility() {
+  const active = activeThreadKey();
+  Object.keys(threads).forEach(key => {
+    const t = threads[key];
+    t.pane.classList.toggle("active", key === active);
+    if (key === active) t.unread = 0;
+  });
+}
+
+// 侧栏里给每个助手显示它自己那份对话的最后一句。
+// 系统提示（「已切换到 XX」）不算数：它一出现就把真正的对话盖住了，
+// 侧栏看上去就像那个助手什么都没说过。
+function threadPreview(key) {
+  const t = threads[key];
+  if (!t || !t.items.length) return "";
+  let last = null;
+  for (let i = t.items.length - 1; i >= 0; i--) {
+    if (t.items[i].role === "system") continue;
+    last = t.items[i];
+    break;
+  }
+  if (!last) last = t.items[t.items.length - 1];
+  const who = last.role === "user" ? "你"
+            : (last.role === "system" ? "系统" : agentName(last.agent));
+  return who + "：" + String(last.message || "").replace(/\s+/g, " ").slice(0, 34);
+}
+
+// 把整份对话清空：画过的东西、记住的编号、DOM 都不要了。
+// 主机换了人（重启过）或者用户按了刷新，就重来一遍。
+function resetThreads() {
+  Object.keys(threads).forEach(key => delete threads[key]);
+  seen.clear();
+  lastSeq = 0;
+  historyCounts = {};
+  historyMore = {};
+  speechCounts = {};
+  $("thread").innerHTML = "";
+}
+
+// 启动时一次性把每个助手各自的对话取回来。
+// 服务端已经按助手分好了，前端只要各归各位。
+async function loadThreads() {
+  try {
+    const data = await apiGet("/api/threads");
+    // 主机换了一个：旧的编号已经对不上新的对话了。整份重画，
+    // 而不是接着用旧编号往后问。
+    if (data.instance_id) {
+      if (hostInstance && hostInstance !== data.instance_id) resetThreads();
+      hostInstance = data.instance_id;
+    }
+    const groups = data.threads || {};
+    historyCounts = data.counts || {};
+    historyMore = data.has_more || {};
+    speechCounts = data.speech_counts || {};
+    Object.keys(groups).forEach(key => {
+      const items = groups[key] || [];
+      if (!items.length) return;
+      // 首屏全是历史，不产生未读角标。
+      items.forEach(item => addEntry(item, false));
+    });
+    Object.keys(threads).forEach(updateOlderButton);
+    if (typeof data.last_seq === "number") lastSeq = data.last_seq;
+    syncThreadVisibility();
+    renderAgents();
+    $("chat").scrollTop = $("chat").scrollHeight;
+    bannerClear("threads");
+  } catch (e) {
+    bannerError("threads", "拉取对话失败：" + e.message);
+  }
+}
+
+async function pollTranscript() {
+  try {
+    const data = await apiGet("/api/transcript?after=" + lastSeq);
+    // 主机重启过了：编号从头开始，旧游标问不到任何新消息。
+    // 认出来就整份重画，之后照常接着增量。
+    if (data.instance_id && hostInstance && hostInstance !== data.instance_id) {
+      hostInstance = data.instance_id;
+      resetThreads();
+      await loadThreads();
+      bannerClear("transcript");
+      return;
+    }
+    if (data.instance_id) hostInstance = data.instance_id;
+    if (data.items && data.items.length) renderEntries(data.items, true);
+    // last_seq 可能是 0（对话刚清空），所以不能拿它当"有没有值"
+    // 的判断：只要它是个数字就得记下来。
+    if (typeof data.last_seq === "number") lastSeq = data.last_seq;
+    bannerClear("transcript");
+  } catch (e) {
+    bannerError("transcript", "拉取对话失败：" + e.message);
+  }
+}
+
+async function pollStatus() {
+  try {
+    const s = await apiGet("/api/status");
+    agents = s.agents || {};
+    if (s.art) art = s.art;
+    // 语音选了别的助手时，左边跟着走：电脑端和音箱说的是同一个助手。
+    const voice = s.selected_agent || "direct";
+    if (voice !== selected) {
+      selected = voice;
+      syncThreadVisibility();
+      renderAgents();
+      placeholder();
+      loadModels();
+    } else {
+      renderAgents();
+    }
+    const chip = $("chipstate");
+    if (s.busy) {
+      chip.textContent = "处理中";
+      chip.className = "chip busy";
+      $("livedot").className = "live-dot busy";
+    } else {
+      chip.textContent = "空闲";
+      chip.className = "chip idle";
+      $("livedot").className = "live-dot";
+    }
+    if (s.direct) renderDirectStatus(s.direct);
+    if (s.wake) wakeInfo = s.wake;
+    bannerClear("status");
+  } catch (e) {
+    bannerError("status", "拉取状态失败：" + e.message);
+  }
+}
+
+/* ---------- 直连状态与设置 ---------- */
+function renderDirectStatus(d) {
+  directInfo = d;
+  const dot = $("modedot"), txt = $("modetext");
+  const modeName = { off: "关闭", hybrid: "混合", full: "全部接管" }[d.mode] || d.mode;
+  if (d.mode === "off") {
+    dot.className = "mode-dot";
+    txt.textContent = "直连：" + modeName;
+  } else {
+    dot.className = "mode-dot on";
+    const who = d.source === "custom"
+      ? ("自定义 · " + ((d.custom && d.custom.model) || "未填模型"))
+      : ((agents[d.assistant] || {}).name || d.assistant);
+    txt.textContent = "直连：" + modeName + " · " + who;
+  }
+}
+
+function openSettings() {
+  const d = directInfo || { mode: "hybrid", source: "assistant", assistant: "hermes", custom: {} };
+  // 直连模式：下拉选择，替代原来的三个单选。选项固定，选中值来自状态。
+  const dmodeSel = $("dmode");
+  // 每种接管方式的完整说明：切换下拉时实时显示在下方。
+  const MODE_HINTS = {
+    off: "关闭：保持若琪原厂行为，必须说「找小赫」这类指令才会用助手。日常问问题由原厂自己回答。",
+    hybrid: "混合 · 原厂优先（推荐）：报时、闹钟、音量、放歌、开灯这类原厂技能仍由若琪自己处理；其它问题（为什么、怎么办、写点什么）不用喊助手，直接问就会交给大模型回答。",
+    full: "全部接管：所有对话都交给大模型回答，原厂技能（闹钟、音量、放歌）不再响应——需要它们时得先把接管方式改回来。",
+  };
+  const showModeHint = () => {
+    const el = $("dmodehint");
+    if (el) el.textContent = MODE_HINTS[dmodeSel.value] || "";
+  };
+  if (!dmodeSel.options.length) {
+    [
+      ["off", "关闭"],
+      ["hybrid", "混合 · 原厂优先（推荐）"],
+      ["full", "全部接管"],
+    ].forEach(([v, t]) => {
+      const o = document.createElement("option");
+      o.value = v; o.textContent = t;
+      dmodeSel.appendChild(o);
+    });
+    dmodeSel.addEventListener("change", showModeHint);
+  }
+  dmodeSel.value = ["off", "hybrid", "full"].includes(d.mode) ? d.mode : "hybrid";
+  showModeHint();
+  // 回答用的助手下拉；自定义接口字段按当前来源展开或收起。
+  const sel = $("diragent");
+  sel.innerHTML = "";
+  Object.entries(agents).forEach(([id, info]) => {
+    if (!info.enabled) return;
+    const o = document.createElement("option");
+    o.value = id;
+    o.textContent = info.name;
+    if (id === d.assistant) o.selected = true;
+    sel.appendChild(o);
+  });
+  $("dirbase").value = (d.custom && d.custom.base_url) || "";
+  $("dirmodel").value = (d.custom && d.custom.model) || "";
+  $("dirkey").value = "";
+  $("dirkey").placeholder = (d.custom && d.custom.api_key_set)
+    ? "API Key 已保存（留空不修改）" : "API Key";
+  toggleCustomFields(d.source === "custom");
+  $("settings").classList.add("open");
+  showSettingsTab("direct");
+}
+
+/* 自定义接口：一行按钮，展开才填字段，保存时也只在展开时提交。 */
+function toggleCustomFields(open) {
+  $("customfields").style.display = open ? "" : "none";
+  $("btn-custom-open").textContent = open ? "收起" : "配置…";
+}
+$("btn-custom-open").onclick = () => {
+  toggleCustomFields($("customfields").style.display === "none");
+};
+
+$("btnsettings").onclick = openSettings;
+$("settingscancel").onclick = closeSettings;
+$("settings").addEventListener("click", e => {
+  if (e.target === $("settings")) closeSettings();
+});
+
+/* ---------- 设置：左侧分类导航 ---------- */
+/* 左列选分类，右列的标题和副标题跟着换。切到「助手授权」时按当前
+   选中的助手初始化登录状态；「保存」按钮只对有表单的分类有意义，
+   授权分类用的是它自己的登录按钮。 */
+const PANE_META = {
+  direct: ["直连与模型", "让若琪不喊「找助手」也能回答，并决定用哪个模型回答。"],
+  wake: ["唤醒词", "每个助手一个专属唤醒词：喊词直接找它，「若琪」保持原样。"],
+  neko: ["猫娘 · 主动说话", "安静时主动开口的间隔与静默时段。"],
+  music: ["音乐与声音", "用若琪自己的播放器放音乐；这条通道以后也用来接猫娘的声线。"],
+  roon: ["Roon 遥控", "若琪只做屏幕显示与语音遥控，声音由 Roon 输出到你的 AirPlay 设备。"],
+  home: ["智能家居", "接 Home Assistant：地址 + 访问令牌，连接测试只读不碰设备。"],
+  auth: ["WorkBuddy 授权", "用 WorkBuddy 账号登录后，巴蒂才能替你干活。"],
+  miniapps: ["应用商店", "添加你需要的应用，点“设置”管理各项功能。"],
+  appearance: ["其它", "对话台深浅主题，以及只针对到期提示的原厂语音遮蔽开关。"],
+};
+
+/* 应用商店：目录与原有独立设置页，增删状态由服务端持久化。 */
+function showAppCatalog() {
+  $("panetitle").textContent = "应用商店";
+  $("panesub").textContent = "添加你需要的应用，点“设置”管理各项功能。";
+  $("appstore-grid").hidden = false;
+  $("appstore-grid").style.display = "";
+  $("appstore-detail").hidden = true;
+  document.querySelectorAll('[data-app-settings]').forEach(el => el.hidden = true);
+}
+function openAppSettings(id) {
+  const title = document.querySelector(`[data-store-app="${id}"] h3`).textContent;
+  $("panetitle").textContent = title;
+  $("panesub").textContent = "应用设置";
+  $("appstore-query-notes").hidden = ['weather', 'clock', 'bambu_print'].includes(id);
+  $("appstore-grid").style.display = "none";
+  $("appstore-detail").hidden = false;
+  document.querySelectorAll('[data-app-settings]').forEach(el => el.hidden = el.dataset.appSettings !== id);
+  $("appstore-status").textContent = "";
+  $("appstore-detail").closest('.settings-content').scrollTop = 0;
+  if (id === 'bambu_print') loadBambuSettings();
+}
+function renderAppStore(info) {
+  for (const app of info.apps || []) {
+    const button = document.querySelector(`[data-store-toggle="${app.id}"]`);
+    if (!button) continue;
+    button.dataset.installed = String(app.installed);
+    button.textContent = app.installed ? "删除" : "添加";
+    button.classList.toggle('added', app.installed);
+    button.disabled = false;
+    button.setAttribute('aria-label', (app.installed ? '删除' : '添加') + app.name);
+  }
+}
+async function loadAppStore() {
+  try { renderAppStore(await apiGet('/api/app-store')); }
+  catch (error) { $("appstore-status").textContent = "读取应用商店失败：" + error.message; }
+}
+$("appstore-back").onclick = showAppCatalog;
+document.querySelectorAll('[data-store-settings]').forEach(button => {
+  button.onclick = () => openAppSettings(button.dataset.storeSettings);
+});
+document.querySelectorAll('[data-store-toggle]').forEach(button => {
+  button.onclick = async () => {
+    button.disabled = true;
+    try {
+      const installed = button.dataset.installed !== 'true';
+      renderAppStore(await apiPost('/api/app-store/install', {app_id:button.dataset.storeToggle, installed}));
+      $("appstore-status").textContent = "";
+      toast(installed ? "应用已添加" : "应用已删除，设置已保留");
+      if (button.dataset.storeToggle === 'weather') loadWeather();
+    } catch (error) { $("appstore-status").textContent = error.message; toast(error.message); }
+    finally { button.disabled = false; }
+  };
+});
+
+function fillBambuSettings(info) {
+  $("bambu-host").value = info.host;
+  $("bambu-serial").value = info.serial;
+  $("bambu-code").value = "";
+  $("bambu-code").placeholder = info.has_access_code ? "已保存 · 留空保留" : "8 位 LAN 访问码";
+}
+async function bambuAction(action, pending) {
+  const buttons = Array.from($("bambu-form").querySelectorAll("button"));
+  buttons.forEach(button => button.disabled = true);
+  $("bambu-status").textContent = pending;
+  try {
+    $("bambu-status").textContent = await action();
+  } catch (error) {
+    $("bambu-status").textContent = error.message;
+  } finally {
+    buttons.forEach(button => button.disabled = false);
+  }
+}
+function loadBambuSettings() {
+  $("bambu-code").value = "";
+  return bambuAction(async () => {
+    fillBambuSettings(await apiGet("/api/bambu-print"));
+    return "";
+  }, "读取连接设置…");
+}
+$("bambu-form").onsubmit = event => {
+  event.preventDefault();
+  bambuAction(async () => {
+    const info = await apiPost("/api/bambu-print", {
+      host: $("bambu-host").value,
+      serial: $("bambu-serial").value,
+      access_code: $("bambu-code").value,
+    });
+    fillBambuSettings(info);
+    return "连接已保存";
+  }, "保存中…");
+};
+$("bambu-test").onclick = () => bambuAction(async () => {
+  const result = await apiPost("/api/bambu-print/test", {});
+  return result.message;
+}, "正在连接打印机…");
+$("bambu-show").onclick = () => bambuAction(async () => {
+  const result = await apiPost("/api/miniapps/query", {app_id: "bambu_print"});
+  return result.status === "error" ? result.speech : "已发送到若琪 · " + result.speech;
+}, "正在读取打印状态…");
+
+/* ---------- 小应用：Codex 用量 / 网络速度 / 系统资源 ---------- */
+async function miniQuery(operation, wantsToday, appId) {
+  const out = $("miniresult");
+  out.textContent = appId ? "正在读取本机系统数据…" : "正在读取本机 Codex 数据…";
+  try {
+    const body = {
+      operation: operation, present: true,
+      wants_today: !!wantsToday
+    };
+    if (appId) body.app_id = appId;
+    const result = await apiPost("/api/miniapps/query", body);
+    out.textContent = result.speech || ("状态：" + result.status);
+  } catch (error) {
+    out.textContent = "查询失败：" + error.message;
+  }
+}
+$("miniquota").onclick = () => miniQuery("quota", false);
+$("minitokens").onclick = () => miniQuery("tokens", false);
+$("minitoday").onclick = () => miniQuery("tokens", true);
+$("mininet").onclick = () => miniQuery("speed", false, "network_speed");
+$("minires").onclick = () => miniQuery("resources", false, "system_resources");
+$("minihide").onclick = async () => {
+  try {
+    await apiPost("/api/miniapps/hide", {});
+    $("miniresult").textContent = "卡片已关闭。";
+  } catch (error) {
+    $("miniresult").textContent = "关闭失败：" + error.message;
+  }
+};
+
+/* ---------- 小应用：自定义语音说法（点保存立即生效） ---------- */
+/* 内置说法由 /api/miniapps 只读下发；自定义说法按卡片保存到主机配置，
+   保存后 service 立即重建匹配规则，不需要重启 host。 */
+async function loadMiniappVoice() {
+  try {
+    const info = await apiGet("/api/miniapps");
+    (info.apps || []).forEach(app => {
+      const input = $("minivoice-" + app.id);
+      if (!input) return;
+      const custom = (info.voice_phrases || {})[app.id] || [];
+      input.value = custom.join("，");
+      const builtin = (info.builtin_phrases || {})[app.id] || [];
+      const box = $("minibuiltin-" + app.id);
+      if (box) box.textContent = builtin.length ? builtin.join("、") : "（无内置说法）";
+      const sum = $("minivoicesum-" + app.id);
+      if (sum) sum.textContent = "内置说法（" + builtin.length + " 条，点开查看）";
+      const status = $("minivoicestatus-" + app.id);
+      if (status) status.textContent = custom.length
+        ? "已保存 " + custom.length + " 条自定义说法" : "";
+    });
+    const actions = info.card_actions || [];
+    const act = $("miniappcardactions");
+    if (act) act.textContent = actions.length
+      ? "卡片动作 / 刷新说法：" + actions.join("、") : "";
+  } catch (error) {
+    toast("读取小应用语音设置失败：" + error.message);
+  }
+}
+document.querySelectorAll("[data-voice-save]").forEach(btn => {
+  btn.onclick = async () => {
+    const appId = btn.dataset.voiceSave;
+    const input = $("minivoice-" + appId);
+    const status = $("minivoicestatus-" + appId);
+    if (!input) return;
+    btn.disabled = true;
+    if (status) status.textContent = "保存中…";
+    try {
+      const result = await apiPost("/api/miniapps/voice", {
+        app_id: appId, phrases: input.value
+      });
+      const phrases = result.phrases || [];
+      input.value = phrases.join("，");
+      if (status) status.textContent = phrases.length
+        ? "已保存 " + phrases.length + " 条，立即生效，无需重启"
+        : "已清空自定义说法";
+      const out = $("miniresult");
+      if (out) out.textContent = phrases.length
+        ? "现在可以说「" + phrases.join("」「") + "」"
+        : "该卡片已恢复为仅内置说法";
+      toast("语音说法已保存");
+    } catch (error) {
+      if (status) status.textContent = "保存失败：" + error.message;
+      toast("保存失败：" + error.message);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+});
+
+/* ---------- 天气查询卡：覆盖开关 / 查询按钮 / 自定义说法 ---------- */
+/* 开关即主机 config["weather"]["enabled"]：开=本地技能接管天气说法、原厂规则
+   不含天气词；关=天气词运行时并回 factory_owns，恢复原厂云端应答。翻转时
+   主机同时启停 8799 替身 API，无需重启。 */
+function weatherHint(on) {
+  return on
+    ? "当前：已开启。天气类说法由本地技能接管：若琪原厂卡片显示与播报，数据由这台 Mac 双源取回。"
+    : "当前：已关闭。天气类说法交还原厂云端处理（当前云端会回复内容到期提示）。";
+}
+async function loadWeather() {
+  try {
+    const info = await apiGet("/api/weather");
+    const on = !!info.enabled;
+    $("weatheroverride").checked = on;
+    $("weatheroverridehint").textContent = weatherHint(on);
+    $("weathercity").value = info.city || "";
+    $("weatherapiurl").value = info.api_url || "";
+    $("weatherwttrurl").value = info.wttr_url || "";
+    const custom = info.voice_phrases || [];
+    $("minivoice-weather").value = custom.join("，");
+    const builtin = info.builtin_phrases || [];
+    $("minibuiltin-weather").textContent = builtin.length
+      ? builtin.join("、") + "（关键词匹配：句中含任一说法即触发）" : "（无内置说法）";
+    $("minivoicesum-weather").textContent = "内置说法（" + builtin.length + " 条，点开查看）";
+    $("minivoicestatus-weather").textContent = custom.length
+      ? "已保存 " + custom.length + " 条自定义说法" : "";
+    const st = $("weathersettingsstatus");
+    if (st) st.textContent = info.city
+      ? "当前地区：" + info.city + "（优先于设备位置）" : "当前地区：跟随设备上报位置";
+  } catch (error) {
+    $("weatheroverridehint").textContent = "读取天气设置失败：" + error.message;
+  }
+}
+$("weatheroverride").onchange = async () => {
+  const enabled = $("weatheroverride").checked;
+  try {
+    const r = await apiPost("/api/weather/override", { enabled });
+    $("weatheroverride").checked = !!r.enabled;
+    $("weatheroverridehint").textContent = weatherHint(!!r.enabled);
+    toast(enabled ? "已开启：本地天气技能接管" : "已关闭：恢复原厂天气应答");
+  } catch (error) {
+    $("weatheroverride").checked = !enabled;
+    toast("保存失败：" + error.message);
+  }
+};
+$("minweather").onclick = async () => {
+  const out = $("miniresult");
+  out.textContent = "正在若琪上打开天气卡片…";
+  try {
+    const r = await apiPost("/api/weather/query", {});
+    out.textContent = r.duplicate
+      ? "刚刚已打开过，稍等几秒再试"
+      : (r.ok === false
+          ? r.error
+          : "天气卡片已在若琪上打开，播报由原厂声音完成。");
+  } catch (error) {
+    out.textContent = "查询失败：" + error.message;
+  }
+};
+$("weatherfix").onclick = async () => {
+  const btn = $("weatherfix");
+  const status = $("weatherfixstatus");
+  btn.disabled = true;
+  if (status) status.textContent = "正在检查设备接线…";
+  try {
+    const r = await apiPost("/api/weather/wiring", {});
+    if (status) status.textContent = r.ok === false
+      ? ("修复失败：" + (r.error || "未知错误"))
+      : r.message;
+    toast(r.ok === false ? "接线修复失败" : (r.fixed && r.fixed.length ? "接线已修复：" + r.fixed.join("、") : "接线正常"));
+  } catch (error) {
+    if (status) status.textContent = "修复失败：" + error.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
+$("weathersettingsave").onclick = async () => {
+  const btn = $("weathersettingsave");
+  const status = $("weathersettingsstatus");
+  btn.disabled = true;
+  if (status) status.textContent = "保存中…";
+  try {
+    const info = await apiPost("/api/weather/settings", {
+      city: $("weathercity").value,
+      api_url: $("weatherapiurl").value,
+      wttr_url: $("weatherwttrurl").value
+    });
+    $("weathercity").value = info.city || "";
+    $("weatherapiurl").value = info.api_url || "";
+    $("weatherwttrurl").value = info.wttr_url || "";
+    if (status) status.textContent = info.city
+      ? "已保存。当前地区：" + info.city + "（优先于设备位置），下次查询即生效"
+      : "已保存。当前地区：跟随设备上报位置，下次查询即生效";
+    toast("天气设置已保存");
+  } catch (error) {
+    if (status) status.textContent = "保存失败：" + error.message;
+    toast("保存失败：" + error.message);
+  } finally {
+    btn.disabled = false;
+  }
+};
+$("weathervoicesave").onclick = async () => {
+  const btn = $("weathervoicesave");
+  const input = $("minivoice-weather");
+  const status = $("minivoicestatus-weather");
+  btn.disabled = true;
+  if (status) status.textContent = "保存中…";
+  try {
+    const result = await apiPost("/api/weather/voice", { phrases: input.value });
+    const phrases = result.phrases || [];
+    input.value = phrases.join("，");
+    if (status) status.textContent = phrases.length
+      ? "已保存 " + phrases.length + " 条，立即生效，无需重启"
+      : "已清空自定义说法";
+    const out = $("miniresult");
+    if (out) out.textContent = phrases.length
+      ? "现在可以说「" + phrases.join("」「") + "」"
+      : "天气已恢复为仅内置说法";
+    toast("语音说法已保存");
+  } catch (error) {
+    if (status) status.textContent = "保存失败：" + error.message;
+    toast("保存失败：" + error.message);
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+/* ---------- 待机时钟卡：换表盘 / 自定义说法 ---------- */
+/* 表盘切换经 adb 广播 SET_FACE 到设备端自研 idle 应用（app/clock/），
+   config.json 落盘重启保留；语音说法复用 D044 match_key 归一化。 */
+async function loadClock() {
+  try {
+    const info = await apiGet("/api/clock");
+    const face = info.face || "grid";
+    const faces = [...new Set(["grid", "digital", "orbit", "weekday", "minimal", "lagoon", "milk", "forest", "roman", ...(info.faces || [])])];
+    const names = { grid: "2×2 数字", digital: "电子日历", orbit: "双旋转刻度", weekday: "星期环", minimal: "双圆极简", lagoon: "蓝紫鳄鱼", milk: "牛奶派对", forest: "林间夜色", roman: "黑曜罗马" };
+    $("clockfacehint").textContent =
+      "当前表盘：" + (names[face] || face) + " · 可选：" +
+      faces.map(f => names[f] || f).join(" / ");
+    const custom = info.voice_phrases || [];
+    $("minivoice-clock").value = custom.join("，");
+    const builtin = info.builtin_phrases || [];
+    $("minibuiltin-clock").textContent = builtin.length
+      ? builtin.join("、") + "（关键词匹配：句中含任一说法即触发）" : "（无内置说法）";
+    $("minivoicesum-clock").textContent = "内置说法（" + builtin.length + " 条，点开查看）";
+    $("minivoicestatus-clock").textContent = custom.length
+      ? "已保存 " + custom.length + " 条自定义说法" : "";
+  } catch (error) {
+    $("clockfacehint").textContent = "读取时钟设置失败：" + error.message;
+  }
+}
+document.querySelectorAll("[data-clock-face]").forEach(btn => {
+  btn.onclick = async () => {
+    const face = btn.getAttribute("data-clock-face");
+    const out = $("miniresult");
+    if (out) out.textContent = "正在切换表盘…";
+    try {
+      const r = await apiPost("/api/clock/face", { face });
+      const names = { grid: "2×2 数字", digital: "电子日历", orbit: "双旋转刻度", weekday: "星期环", minimal: "双圆极简", lagoon: "蓝紫鳄鱼", milk: "牛奶派对", forest: "林间夜色", roman: "黑曜罗马" };
+      const now = r.face || face;
+      $("clockfacehint").textContent =
+        "当前表盘：" + (names[now] || now) + " · 可选：" +
+        [...new Set(["grid", "digital", "orbit", "weekday", "minimal", "lagoon", "milk", "forest", "roman", ...(r.faces || [])])].map(f => names[f] || f).join(" / ");
+      if (out) out.textContent = "表盘已切换为「" + (names[now] || now) + "」，重启后保留";
+      toast("表盘已切换");
+    } catch (error) {
+      if (out) out.textContent = "切换失败：" + error.message;
+      toast("切换失败：" + error.message);
+    }
+  };
+});
+$("clockvoicesave").onclick = async () => {
+  const btn = $("clockvoicesave");
+  const input = $("minivoice-clock");
+  const status = $("minivoicestatus-clock");
+  btn.disabled = true;
+  if (status) status.textContent = "保存中…";
+  try {
+    const result = await apiPost("/api/clock/voice", { phrases: input.value });
+    const phrases = result.phrases || [];
+    input.value = phrases.join("，");
+    if (status) status.textContent = phrases.length
+      ? "已保存 " + phrases.length + " 条，立即生效，无需重启"
+      : "已清空自定义说法";
+    const out = $("miniresult");
+    if (out) out.textContent = phrases.length
+      ? "现在可以说「" + phrases.join("」「") + "」换表盘"
+      : "已恢复为仅内置说法";
+    toast("语音说法已保存");
+  } catch (error) {
+    if (status) status.textContent = "保存失败：" + error.message;
+    toast("保存失败：" + error.message);
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+/* ---------- 主题：深色 / 浅色 / 跟随系统 ---------- */
+/* 选择记在这台电脑的浏览器里（localStorage），不上传、不同步到服务器。
+   「跟随系统」时监听系统的深浅变化，电脑切换时对话台跟着切。 */
+const THEME_KEY = "wb.console.theme";
+const themeQuery = window.matchMedia
+  ? window.matchMedia("(prefers-color-scheme: light)") : null;
+function themePref() {
+  // URL 参数优先（临时预览用），其次是上次保存的选择。
+  try {
+    const q = new URLSearchParams(location.search).get("theme");
+    if (q === "light" || q === "dark" || q === "auto") return q;
+  } catch (e) {}
+  try { return localStorage.getItem(THEME_KEY) || "auto"; } catch (e) { return "auto"; }
+}
+function themeResolved() {
+  const pref = themePref();
+  if (pref === "dark" || pref === "light") return pref;
+  return themeQuery && themeQuery.matches ? "light" : "dark";
+}
+function themeLabel(pref) {
+  if (pref === "dark") return "深色";
+  if (pref === "light") return "浅色";
+  return "跟随系统（当前是" + (themeResolved() === "light" ? "浅色" : "深色") + "）";
+}
+function applyTheme() {
+  document.documentElement.setAttribute("data-theme", themeResolved());
+  const hint = $("themehint");
+  if (hint) hint.textContent = "当前：" + themeLabel(themePref())
+    + "。设置存在这台电脑的浏览器里。";
+  document.querySelectorAll("[data-theme-opt]").forEach(function (b) {
+    b.classList.toggle("on", b.dataset.themeOpt === themePref());
+  });
+}
+function setTheme(pref) {
+  try { localStorage.setItem(THEME_KEY, pref); } catch (e) {}
+  applyTheme();
+  toast("已切换为" + themeLabel(pref));
+}
+document.querySelectorAll("[data-theme-opt]").forEach(function (b) {
+  b.addEventListener("click", function () { setTheme(b.dataset.themeOpt); });
+});
+if (themeQuery) {
+  const onSystemTheme = function () { if (themePref() === "auto") applyTheme(); };
+  if (themeQuery.addEventListener) themeQuery.addEventListener("change", onSystemTheme);
+  else if (themeQuery.addListener) themeQuery.addListener(onSystemTheme);
+}
+
+/* ---------- 其它：原厂到期提示遮蔽开关 ---------- */
+/* 只作用于 factory_notice 这一类固定提示，不影响闹钟、天气、报时等其它
+   原厂语音；也不阻止若琪自己念这句提示（那是内容服务状态）。点一下即存。 */
+async function loadFactoryNotice() {
+  try {
+    const r = await apiGet("/api/factory-notice");
+    const on = r.enabled !== false;
+    $("factorynoticemute").checked = on;
+    $("factorynoticehint").textContent = on
+      ? "当前：已开启。到期提示被听到时不会当成你说话，助手不会跟着回话。设置存在本机配置里，重启服务后依然生效。"
+      : "当前：已关闭。到期提示会照常进入助手，可能引起循环播报。设置存在本机配置里。";
+  } catch (e) {
+    $("factorynoticehint").textContent = "读取开关失败：" + e.message;
+  }
+}
+$("factorynoticemute").onchange = async () => {
+  const enabled = $("factorynoticemute").checked;
+  try {
+    const r = await apiPost("/api/factory-notice", { enabled });
+    $("factorynoticemute").checked = r.enabled !== false;
+    toast(enabled ? "已遮蔽原厂到期提示（仅限这一类提示）" : "已关闭到期提示遮蔽");
+  } catch (e) {
+    $("factorynoticemute").checked = !enabled;
+    toast("保存失败：" + e.message);
+  }
+  loadFactoryNotice();
+};
+
+/* ---------- 智能家居（Home Assistant） ---------- */
+
+async function loadHome() {
+  try {
+    const r = await apiGet("/api/homeassistant");
+    const s = r.settings || {};
+    $("haenabled").checked = !!s.enabled;
+    $("habase").value = s.base_url || "";
+    $("haspeak").checked = s.speak_results !== false;
+    $("hatokenhint").textContent = s.token_configured
+      ? "已保存令牌。留空保存 = 保持已有令牌；清除令牌用右边的按钮"
+      : "还没有令牌：在 HA → 个人资料 → 长期访问令牌 生成后填入";
+    $("hagateextra").value = (s.gate_extras || []).join("|");
+    if (r.last_test) renderHaTest(r.last_test);
+  } catch (e) {
+    $("hastatus").textContent = "状态：读取失败 " + e.message;
+    return;
+  }
+}
+
+function renderHaTest(t) {
+  if (t.ok) {
+    $("hastatus").textContent = "状态：连接正常 · 实体 " + (t.entity_count || 0) + " 个";
+    $("hahint").textContent = "只读检查通过（" + (t.message || "API running") + "）。语音已可直接说家居指令，不需要前缀。";
+  } else {
+    $("hastatus").textContent = "状态：" + (t.message || "连接失败");
+    $("hahint").textContent = "连接测试只读取 HA 的状态接口，不会开关任何设备。";
+  }
+}
+
+$("hatest").onclick = async () => {
+  $("hastatus").textContent = "状态：测试中…";
+  try {
+    renderHaTest(await apiPost("/api/homeassistant/test", {}));
+  } catch (e) {
+    $("hastatus").textContent = "状态：测试失败 " + e.message;
+  }
+};
+
+$("hasave").onclick = async () => {
+  const extras = ($("hagateextra").value || "").split("|")
+    .map(v => v.trim()).filter(Boolean);
+  const payload = {
+    enabled: $("haenabled").checked,
+    base_url: $("habase").value.trim(),
+    speak_results: $("haspeak").checked,
+    gate_extras: extras,
+  };
+  const token = $("hatoken").value;
+  if (token) payload.token = token;   // 空 = 保持
+  try {
+    const r = await apiPost("/api/homeassistant/settings", payload);
+    const s = r.settings || {};
+    $("hatokenhint").textContent = s.token_configured
+      ? "已保存令牌。留空保存 = 保持已有令牌；清除令牌用右边的按钮"
+      : "还没有令牌：在 HA → 个人资料 → 长期访问令牌 生成后填入";
+    $("hatoken").value = "";
+    toast("智能家居设置已保存");
+  } catch (e) {
+    toast("保存失败：" + e.message);
+  }
+};
+
+$("hatokenclear").onclick = async () => {
+  try {
+    await apiPost("/api/homeassistant/settings", { clear_token: true });
+    $("hatoken").value = "";
+    $("hatokenhint").textContent = "还没有令牌：在 HA → 个人资料 → 长期访问令牌 生成后填入";
+    toast("令牌已清除");
+  } catch (e) {
+    toast("清除失败：" + e.message);
+  }
+};
+
+$("hacmdsend").onclick = async () => {
+  const text = ($("hacmdtext").value || "").trim();
+  const out = $("hacmdresult");
+  if (!text) { out.textContent = "先写一句话再发送。"; return; }
+  out.textContent = "发送中…";
+  try {
+    const r = await apiPost("/api/homeassistant/command", { text });
+    if (!r.accepted) {
+      out.textContent = "未发送：" + (r.message || "没有命中家居门控");
+      return;
+    }
+    const res = r.result || {};
+    out.textContent = "结果：" + (res.status || r.status) + " · "
+      + (res.message || "（无返回文本）")
+      + (res.verification === "not_checked" ? "（未核验设备状态）" : "");
+  } catch (e) {
+    out.textContent = "发送失败：" + e.message;
+  }
+};
+
+function showSettingsTab(name) {
+  document.querySelectorAll("#settingstabs .nav-item").forEach(t => {
+    t.classList.toggle("on", t.dataset.tab === name);
+  });
+  document.querySelectorAll("#settings .tabpane").forEach(p => {
+    p.classList.toggle("on", p.id === "tab-" + name);
+  });
+  const meta = PANE_META[name] || ["设置", ""];
+  $("panetitle").textContent = meta[0];
+  $("panesub").textContent = meta[1];
+  const isAuth = name === "auth";
+  // 「其它」里的主题和开关都是点一下即时生效，底部保存按钮用不上。
+  // 唤醒词每一行有自己的保存按钮，底部那个也不需要。
+  const isMisc = name === "appearance";
+  const isWake = name === "wake";
+  const isNeko = name === "neko";
+  const isMusic = name === "music";
+  const isRoon = name === "roon";
+  const isHome = name === "home";
+  const isMiniapps = name === "miniapps";
+  $("authlogin").style.display = isAuth ? "" : "none";
+  $("settingssave").style.display = (isAuth || isMisc || isWake || isNeko
+      || isMusic || isMiniapps || isHome) ? "none" : "";
+  if (isWake) loadWake();
+  if (isNeko) { loadNeko(); }
+  if (isMusic) loadMusic();
+  if (isRoon) loadRoon();
+  if (isHome) loadHome();
+  if (isMiniapps) { showAppCatalog(); loadAppStore(); loadMiniappVoice(); loadWeather(); loadClock(); }
+  if (isMisc) { applyTheme(); loadFactoryNotice(); }
+  if (isAuth) {
+    const id = currentAuthAgent();
+    if (id) openAuth(id);
+    else {
+      $("authtitle").textContent = "巴蒂（WorkBuddy）· 登录状态";
+      $("authstate").textContent = "当前没有可用的工作台账号助手。";
+      $("authsub").textContent = "巴蒂没有启用或不存在；先在左侧助手列表里确认它在。";
+      $("authlinkgrp").style.display = "none";
+    }
+  }
+}
+document.querySelectorAll("#settingstabs .nav-item").forEach(t => {
+  t.addEventListener("click", () => showSettingsTab(t.dataset.tab));
+});
+function closeSettings() {
+  $("settings").classList.remove("open");
+  stopAuthPolling();
+}
+$("settingssave").onclick = async () => {
+  const mode = $("dmode").value || "hybrid";
+  const useCustom = $("customfields").style.display !== "none";
+  const payload = {
+    mode: mode,
+    source: useCustom ? "custom" : "assistant",
+    assistant: $("diragent").value
+  };
+  if (useCustom) {
+    payload.custom = {
+      base_url: $("dirbase").value.trim(),
+      model: $("dirmodel").value.trim(),
+      api_key: $("dirkey").value.trim()
+    };
+  }
+  try {
+    const r = await apiPost("/api/direct", payload);
+    renderDirectStatus(r.direct);
+    $("settings").classList.remove("open");
+    toast("设置已保存");
+  } catch (e) {
+    toast("保存失败：" + e.message);
+  }
+};
+
+/* ---------- 唤醒词 ---------- */
+/* 每个助手一个专属唤醒词，喊词直接进那个助手。设置页里总开关管整体，
+   每行的开关和输入框只管那一个词；文字改动要点这一行的「保存」才
+   生效，开关则是拨一下就保存。 */
+async function loadWake() {
+  try {
+    const [w, scan] = await Promise.all([
+      apiGet("/api/wake"),
+      apiGet("/api/wake/scan"),
+    ]);
+    wakeInfo = w;
+    wakeScan = scan;
+    renderWake();
+  } catch (e) {
+    toast("读取唤醒词设置失败：" + e.message);
+  }
+  // 小家的 HA 连接是另一套数据；读失败也不该挡住上面的唤醒词列表。
+  try {
+    renderWakeHa(await apiGet("/api/homeassistant"));
+  } catch (e) {
+    $("wakehastatus").textContent = "状态：读取 HA 设置失败 " + e.message;
+  }
+}
+
+/* 小家不检测本机命令行，检测的是局域网 HA。IP 可以自定义：纯 IP 自动
+   补 http://，只换 IP 时 keep_token 让已存的长期令牌继续有效。 */
+function wakeHaHost(base) {
+  return String(base || "").replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+}
+function wakeHaUrl(value) {
+  const v = String(value || "").trim().replace(/\/+$/, "");
+  if (!v) return "";
+  return /^https?:\/\//i.test(v) ? v : "http://" + v;
+}
+function renderWakeHaCheck(t) {
+  $("wakehastatus").textContent = t && t.ok
+    ? "状态：连接正常 · 实体 " + (t.entity_count || 0) + " 个"
+    : "状态：" + ((t && t.message) || "连接失败");
+}
+function renderWakeHa(r, check) {
+  const s = (r && r.settings) || {};
+  $("wakehahost").value = wakeHaHost(s.base_url);
+  $("wakehatoken").value = "";
+  $("wakehahint").textContent = (s.token_configured
+      ? "已保存 HA 令牌；只改 IP 时留空即可沿用。"
+      : "还没有 HA 令牌：请在上面填入长期访问令牌。")
+    + " 检测只读取状态接口，不会开关设备；AI 助手与播报开关在「设置 → 家居」。";
+  if (check) renderWakeHaCheck(check);
+  else if (r && r.last_test) renderWakeHaCheck(r.last_test);
+  else $("wakehastatus").textContent = s.base_url
+    ? "状态：尚未检测" : "状态：还没有填写 HA 地址";
+}
+async function wakeHaProbe(save) {
+  const btn = $(save ? "wakehasave" : "wakehatest");
+  btn.disabled = true;
+  $("wakehastatus").textContent = save ? "状态：保存中…" : "状态：检测中…";
+  try {
+    if (save) {
+      const host = $("wakehahost").value.trim();
+      if (!host) { toast("请填写 HA 的 IP 或地址"); return; }
+      const payload = { base_url: wakeHaUrl(host), keep_token: true };
+      const token = $("wakehatoken").value.trim();
+      if (token) payload.token = token;
+      const saved = await apiPost("/api/homeassistant/settings", payload);
+      const check = await apiPost("/api/homeassistant/test", {});
+      renderWakeHa({ settings: saved.settings }, check);
+      // 检测卡片里的 IP / 在线状态也跟着刷新。
+      try {
+        wakeScan = await apiGet("/api/wake/scan");
+        renderWakeDetect();
+      } catch (_) { /* 检测失败不影响刚才的保存 */ }
+      toast("小家的 HA 地址已保存，无需重启");
+    } else {
+      renderWakeHaCheck(await apiPost("/api/homeassistant/test", {}));
+    }
+  } catch (e) {
+    $("wakehastatus").textContent = "状态：" + (save ? "保存失败 " : "检测失败 ") + e.message;
+    toast((save ? "保存失败：" : "检测失败：") + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+$("wakehasave").onclick = () => wakeHaProbe(true);
+$("wakehatest").onclick = () => wakeHaProbe(false);
+function renderWake() {
+  const info = wakeInfo || { enabled: false, agents: {} };
+  $("wakeenable").checked = !!info.enabled;
+  // 总开关没打开时不显示各助手的词：功能关着，词也不生效。
+  $("wakecard").style.display = info.enabled ? "" : "none";
+  const box = $("wakerows");
+  box.innerHTML = "";
+  const order = Object.keys(info.agents || {});
+  if (!order.length) {
+    box.innerHTML = '<div class="hintline">还没有任何唤醒词助手。用下面的「本机检测到的助手」或「手动添加助手」加一个。</div>';
+  }
+  order.forEach(id => {
+    const row = info.agents[id] || { enabled: true, pinyin: "" };
+    const name = row.name || id;
+    const wrap = document.createElement("div");
+    wrap.className = "row";
+    const text = document.createElement("div");
+    text.className = "row-text";
+    const t = document.createElement("div");
+    t.className = "t";
+    t.textContent = name + (row.custom ? "（自定义）" : "");
+    const d = document.createElement("div");
+    d.className = "d";
+    d.textContent = "喊这个词直接找" + name;
+    text.appendChild(t); text.appendChild(d);
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "input-mid";
+    input.placeholder = "如 da4fei2yu2";
+    input.value = row.pinyin || "";
+    const save = document.createElement("button");
+    save.className = "btn btn-tiny";
+    save.textContent = "保存";
+    save.onclick = async () => {
+      save.disabled = true;
+      try {
+        wakeInfo = await apiPost("/api/wake", { agent: id, pinyin: input.value.trim() });
+        renderWake();
+        toast(name + " 的唤醒词已保存");
+      } catch (e) {
+        toast("保存失败：" + e.message);
+        save.disabled = false;
+      }
+    };
+    const sw = document.createElement("input");
+    sw.type = "checkbox";
+    sw.className = "switch";
+    sw.checked = row.enabled !== false;
+    sw.disabled = !input.value.trim();
+    sw.onchange = async () => {
+      try {
+        wakeInfo = await apiPost("/api/wake", { agent: id, agent_enabled: sw.checked });
+        renderWake();
+      } catch (e) {
+        toast("保存失败：" + e.message);
+      }
+    };
+    input.oninput = () => {
+      // 没填拼音的词没有东西可唤醒：开关摆在那里也开不了。
+      sw.disabled = !input.value.trim();
+    };
+    wrap.appendChild(text);
+    wrap.appendChild(input);
+    wrap.appendChild(save);
+    wrap.appendChild(sw);
+    if (row.custom) {
+      const rm = document.createElement("button");
+      rm.className = "btn btn-tiny";
+      rm.textContent = "移除";
+      rm.onclick = async () => {
+        rm.disabled = true;
+        try {
+          wakeInfo = await apiPost("/api/wake", { agent: id, remove: true });
+          renderWake();
+          toast("已移除 " + name);
+        } catch (e) {
+          toast("移除失败：" + e.message);
+          rm.disabled = false;
+        }
+      };
+      wrap.appendChild(rm);
+    }
+    box.appendChild(wrap);
+  });
+  renderWakeDetect();
+  renderWakeAliases();
+}
+
+/* 所有助手的别名一张表一次保存。云端复核靠这些写法过审，写漏了会被
+   判 activ fake 掐断收音；保存走 /api/wake，主机内存立即更新，设备
+   下一次轮询就重注册，所以不需要重启，也没有「重启生效」按钮。 */
+function wakeAliasStatus(text) {
+  const el = $("wakealiasstatus");
+  if (el) el.textContent = text;
+}
+function renderWakeAliases() {
+  const box = $("wakealiasrows");
+  if (!box) return;
+  box.innerHTML = "";
+  const info = wakeInfo || { agents: {} };
+  const ids = Object.keys(info.agents || {});
+  if (!ids.length) {
+    box.innerHTML = '<div class="hintline">还没有任何唤醒词助手。</div>';
+    return;
+  }
+  ids.forEach(id => {
+    const row = info.agents[id] || {};
+    const name = row.name || id;
+    const wrap = document.createElement("div");
+    wrap.className = "row";
+    const text = document.createElement("div");
+    text.className = "row-text";
+    const t = document.createElement("div");
+    t.className = "t";
+    t.textContent = name;
+    const d = document.createElement("div");
+    d.className = "d";
+    d.textContent = "云端把「" + name + "」听错时的兜底写法";
+    text.appendChild(t); text.appendChild(d);
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "input-mid";
+    input.placeholder = "如 巴帝|把弟|body";
+    input.value = (row.aliases || []).join("|");
+    input.dataset.agent = id;
+    input.oninput = () => wakeAliasStatus("有未保存的改动");
+    wrap.appendChild(text); wrap.appendChild(input);
+    box.appendChild(wrap);
+  });
+  wakeAliasStatus("设置已保存");
+}
+$("wakealiasesave").onclick = async () => {
+  const map = {};
+  document.querySelectorAll("#wakealiasrows input[data-agent]").forEach(i => {
+    map[i.dataset.agent] = i.value.trim();
+  });
+  const btn = $("wakealiasesave");
+  btn.disabled = true;
+  wakeAliasStatus("保存中…");
+  try {
+    wakeInfo = await apiPost("/api/wake", { aliases_map: map });
+    renderWake();
+    wakeAliasStatus("已保存；若琪会在 1 秒内自动重注册，无需重启");
+    toast("别名已保存，无需重启");
+  } catch (e) {
+    wakeAliasStatus("保存失败：" + e.message);
+    toast("保存失败：" + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+/* 本机检测到的内置助手：可用的、还没加进唤醒词的，给一个「添加」按钮。 */
+function renderWakeDetect() {
+  const box = $("wakedetect");
+  if (!box) return;
+  box.innerHTML = "";
+  const scan = wakeScan || {};
+  const ids = Object.keys(scan);
+  if (!ids.length) {
+    box.innerHTML = '<div class="hintline">没有可检测的已知助手。</div>';
+    return;
+  }
+  ids.forEach(id => {
+    const info = scan[id] || {};
+    const added = wakeInfo && wakeInfo.agents && wakeInfo.agents[id];
+    const wrap = document.createElement("div");
+    wrap.className = "row";
+    const text = document.createElement("div");
+    text.className = "row-text";
+    const t = document.createElement("div");
+    t.className = "t";
+    t.textContent = info.name || id;
+    const d = document.createElement("div");
+    d.className = "d";
+    d.textContent = info.detail || "";
+    text.appendChild(t); text.appendChild(d);
+    const status = document.createElement("span");
+    status.textContent = info.available ? "可用" : "未安装";
+    status.style.cssText = "font-size:11px;padding:1px 8px;border-radius:10px;color:#fff;margin-left:6px;background:" + (info.available ? "#2e7d32" : "#9e9e9e") + ";";
+    t.appendChild(status);
+    wrap.appendChild(text);
+    if (added) {
+      const done = document.createElement("span");
+      done.textContent = "已添加";
+      done.style.cssText = "font-size:11px;padding:1px 8px;border-radius:10px;color:#fff;background:#1565c0;";
+      wrap.appendChild(done);
+    } else {
+      const add = document.createElement("button");
+      add.className = "btn btn-tiny primary";
+      add.textContent = "添加";
+      add.disabled = !info.available;
+      add.onclick = async () => {
+        add.disabled = true;
+        try {
+          wakeInfo = await apiPost("/api/wake", {
+            agent: id, name: info.name || id,
+            pinyin: info.suggested || "", add: true });
+          toast("已添加 " + (info.name || id) + (info.suggested ? "（默认唤醒词 " + info.suggested + "）" : "，请填写拼音"));
+          renderWake();
+        } catch (e) {
+          toast("添加失败：" + e.message);
+          add.disabled = false;
+        }
+      };
+      wrap.appendChild(add);
+    }
+    box.appendChild(wrap);
+  });
+}
+$("wakeenable").onchange = async () => {
+  try {
+    wakeInfo = await apiPost("/api/wake", { enabled: $("wakeenable").checked });
+    renderWake();
+  } catch (e) {
+    toast("保存失败：" + e.message);
+  }
+};
+$("manualadd").onclick = async () => {
+  const id = $("agentid").value.trim();
+  const name = $("agentname").value.trim();
+  const pinyin = $("agentpinyin").value.trim().toLowerCase();
+  const aliases = $("agentaliases").value.trim();
+  if (!id) { toast("请填写助手标识"); return; }
+  if (!name) { toast("请填写显示名称"); return; }
+  if (pinyin && !/^(?:[a-z]+[1-5]){1,4}$/.test(pinyin)) {
+    toast("拼音格式不正确，例如 da4fei2yu2"); return;
+  }
+  try {
+    wakeInfo = await apiPost("/api/wake", {
+      agent: id, name: name, pinyin: pinyin, aliases: aliases, add: true });
+    toast("已添加 " + name);
+    $("agentid").value = ""; $("agentname").value = "";
+    $("agentpinyin").value = ""; $("agentaliases").value = "";
+    renderWake();
+  } catch (e) {
+    toast("添加失败：" + e.message);
+  }
+};
+
+/* ---------- 猫娘：主动说话 ---------- */
+/* 设置改动先留在表单里，只有按下「保存」才写配置；和唤醒词页一样
+   不用底部那个统一「保存」。切走再回来会保留还没保存的编辑。 */
+var nekoInfo = null;
+var nekoDirty = false;
+function nekoStatus(text) {
+  const el = $("nekostatus");
+  if (el) el.textContent = text;
+}
+function markNekoDirty() {
+  nekoDirty = true;
+  nekoStatus("有未保存的改动");
+}
+async function loadNeko(force) {
+  if (nekoDirty && !force) return;
+  try {
+    nekoInfo = await apiGet("/api/neko/proactive");
+    renderNeko();
+  } catch (e) {
+    toast("读取猫娘设置失败：" + e.message);
+  }
+}
+function renderNeko() {
+  const s = nekoInfo || {};
+  $("nekoenable").checked = !!s.enabled;
+  $("nekointerval").value = s.interval_minutes == null ? 10 : s.interval_minutes;
+  $("nekoquietstart").value = s.quiet_start || "00:00";
+  $("nekoquietend").value = s.quiet_end || "11:00";
+  nekoDirty = false;
+  nekoStatus("设置已保存");
+}
+async function saveNeko() {
+  const patch = {
+    enabled: $("nekoenable").checked,
+    interval_minutes: Number($("nekointerval").value),
+    quiet_start: $("nekoquietstart").value,
+    quiet_end: $("nekoquietend").value
+  };
+  nekoStatus("保存中…");
+  try {
+    nekoInfo = await apiPost("/api/neko/proactive", patch);
+    renderNeko();
+    toast("猫娘设置已保存");
+  } catch (e) {
+    nekoStatus("保存失败，请重试");
+    toast("保存失败：" + e.message);
+  }
+}
+["nekoenable", "nekointerval", "nekoquietstart", "nekoquietend"].forEach(id => {
+  $(id).addEventListener("change", markNekoDirty);
+  $(id).addEventListener("input", markNekoDirty);
+});
+$("nekosave").onclick = saveNeko;
+$("nekonow").onclick = async () => {
+  try {
+    const r = await apiPost("/api/neko/proactive", { now: true });
+    toast(r.accepted ? "已在若琪上重播最近一句" :
+      (r.reason === "neko not selected" ? "请先在左侧选中猫娘" :
+       r.reason === "no answer yet" ? "还没有可重播的话，先跟猫娘聊一句" : "没有触发"));
+  } catch (e) {
+    toast("触发失败：" + e.message);
+  }
+};
+$("nekofresh").onclick = async () => {
+  try {
+    const r = await apiPost("/api/neko/proactive", { now: "fresh" });
+    toast(r.accepted ? "已让猫娘说句新的（Mac 上也会朗读）" :
+      (r.reason === "neko not selected" ? "请先在左侧选中猫娘" : "没有触发"));
+  } catch (e) {
+    toast("触发失败：" + e.message);
+  }
+};
+
+/* ---------- 音乐与声音 ---------- */
+/* 控制台只管文件夹与随机连播，不列曲目：本地音乐库可能有上万首。
+   封面与歌词只在若琪屏幕上显示，由设备端按播放进度逐行高亮。 */
+var musicPoll = null;
+var musicFolders = [];
+var musicFolderDirty = false;
+var musicShuffle = false;
+function musicState(text) {
+  const el = $("musicstate");
+  if (el) el.textContent = text;
+}
+function musicHint(text) {
+  const el = $("musichint");
+  if (el) el.textContent = text;
+}
+function folderStatus(text) {
+  const el = $("musicfolderstatus");
+  if (el) el.textContent = text;
+}
+function renderIndex(info) {
+  const el = $("musicindexstatus");
+  if (!el || !info) return;
+  const label = info.state === "scanning" ? "正在扫描…" :
+                info.state === "ready" ? "已索引" :
+                info.state === "error" ? "索引失败" : "未建立";
+  el.textContent = "索引：" + label + " · " + (info.count || 0) + " 首" +
+                   (info.scan_depth ? " · 最多 " + info.scan_depth + " 层子目录" : "") +
+                   (info.error ? " · " + info.error : "");
+}
+function renderFolders() {
+  const box = $("musicfolders");
+  if (!box) return;
+  if (!musicFolders.length) {
+    box.innerHTML = '<div class="hintline">还没有添加文件夹。</div>';
+    return;
+  }
+  box.innerHTML = musicFolders.map((path, i) =>
+    '<div class="row"><div class="row-text"><div class="t">' +
+      escapeHtml(path) + '</div></div>' +
+    '<button class="btn" data-folder-index="' + i + '">移除</button></div>'
+  ).join("");
+  box.querySelectorAll("button[data-folder-index]").forEach(btn => {
+    btn.onclick = () => {
+      musicFolders.splice(Number(btn.dataset.folderIndex), 1);
+      musicFolderDirty = true;
+      folderStatus("有未保存的改动");
+      renderFolders();
+    };
+  });
+}
+/* ---------- 文件夹选择器 ---------- */
+/* 浏览器拿不到本机绝对路径，所以由 host 一次列一层目录，控制台只负责点选。 */
+var folderPickerPath = "";
+var folderPickerParent = null;
+function folderPickerHint(text) {
+  const el = $("folderhint");
+  if (el) el.textContent = text;
+}
+function openFolderPicker() {
+  const mask = $("folderpicker");
+  if (!mask) return;
+  mask.classList.add("open");
+  browseFolder(folderPickerPath || "");
+}
+function closeFolderPicker() {
+  const mask = $("folderpicker");
+  if (mask) mask.classList.remove("open");
+}
+function addPickedFolder(path) {
+  if (!path) return;
+  if (musicFolders.indexOf(path) < 0) {
+    musicFolders.push(path);
+    musicFolderDirty = true;
+    renderFolders();
+  }
+  $("musicfolderinput").value = "";
+  folderStatus("已加入列表，记得点「保存文件夹」");
+  closeFolderPicker();
+}
+async function browseFolder(path) {
+  const list = $("folderlist");
+  if (list) list.innerHTML = '<div class="folder-item">读取中…</div>';
+  try {
+    const r = await apiGet("/api/music/browse" +
+      (path ? "?path=" + encodeURIComponent(path) : ""));
+    if (!r.ok) {
+      folderPickerHint(r.error || "读取失败");
+      if (list) list.innerHTML = "";
+      return;
+    }
+    folderPickerPath = r.path || "";
+    folderPickerParent = r.parent || null;
+    $("foldercrumb").textContent = r.path;
+    const shortcuts = (r.shortcuts || []);
+    const bar = $("foldershortcuts");
+    bar.innerHTML = shortcuts.map((s, i) =>
+      '<button class="btn" data-folder-shortcut="' + i + '">' +
+      escapeHtml(s.name) + '</button>').join("");
+    bar.querySelectorAll("button[data-folder-shortcut]").forEach(btn => {
+      btn.onclick = () => browseFolder(
+        shortcuts[Number(btn.dataset.folderShortcut)].path);
+    });
+    const rows = r.dirs || [];
+    list.innerHTML = rows.length
+      ? rows.map((d, i) =>
+          '<div class="folder-item" data-folder-dir="' + i + '">' +
+          escapeHtml(d.name) + '</div>').join("")
+      : '<div class="folder-item">这一层没有子文件夹</div>';
+    list.querySelectorAll("[data-folder-dir]").forEach(row => {
+      row.onclick = () => browseFolder(
+        rows[Number(row.dataset.folderDir)].path);
+    });
+    folderPickerHint("当前目录直接有 " + (r.tracks || 0) + " 首音频文件；" +
+      "保存后最多向下扫描 " + (r.scan_depth || 5) + " 层。" +
+      (r.truncated ? " 子文件夹太多，只列出前一部分。" : ""));
+  } catch (e) {
+    folderPickerHint("读取失败：" + e.message);
+    if (list) list.innerHTML = "";
+  }
+}
+$("musicfolderpick").onclick = openFolderPicker;
+$("foldercancel").onclick = closeFolderPicker;
+$("folderpicker").onclick = (e) => {
+  if (e.target === $("folderpicker")) closeFolderPicker();
+};
+$("folderup").onclick = () => {
+  if (folderPickerParent) browseFolder(folderPickerParent);
+  else folderPickerHint("已经到可浏览的最上层了");
+};
+$("folderchoose").onclick = () => {
+  if (!folderPickerPath) { folderPickerHint("还没选到文件夹"); return; }
+  addPickedFolder(folderPickerPath);
+};
+$("foldernative").onclick = async () => {
+  folderPickerHint("已打开 macOS 文件夹选择框，请在 Finder 里选…");
+  try {
+    const r = await apiPost("/api/music/pick-folder", {});
+    if (!r.ok) { folderPickerHint(r.error || "系统选择框不可用"); return; }
+    addPickedFolder(r.path);
+  } catch (e) {
+    folderPickerHint("系统选择框失败：" + e.message);
+  }
+};
+
+/* ---------- 网易云音乐账号 ---------- */
+var neteasePage = "";
+function renderNetease(r) {
+  const el = $("neteasestatus");
+  if (!el) return;
+  neteasePage = r.credential_page || "";
+  if (!r.online) {
+    el.textContent = "账号状态：N.E.K.O. 未运行，无法读取";
+    return;
+  }
+  el.textContent = r.logged_in
+    ? "账号状态：已登录网易云音乐 · Cookie " + (r.cookies_count || 0) + " 条"
+    : "账号状态：未登录（部分歌曲可能取不到）";
+}
+async function loadNetease() {
+  try {
+    renderNetease(await apiGet("/api/music/netease"));
+  } catch (e) {
+    const el = $("neteasestatus");
+    if (el) el.textContent = "账号状态：读取失败";
+  }
+}
+$("neteaserefresh").onclick = () => { loadNetease(); };
+$("neteasepage").onclick = () => {
+  if (neteasePage) window.open(neteasePage, "_blank", "noopener");
+  else loadNetease();
+};
+$("neteaselogin").onclick = async () => {
+  const value = ($("neteasecookie").value || "").trim();
+  if (!value) {
+    $("neteasehint").textContent = "先粘贴 MUSIC_U 或整段 Cookie。";
+    return;
+  }
+  $("neteasehint").textContent = "正在登录…";
+  try {
+    const r = await apiPost("/api/music/netease/login", { cookie: value });
+    if (!r.ok) { $("neteasehint").textContent = r.error || "登录失败"; return; }
+    $("neteasecookie").value = "";
+    $("neteasehint").textContent = r.message || "已登录网易云音乐";
+    renderNetease(r);
+  } catch (e) {
+    $("neteasehint").textContent = "登录失败：" + e.message;
+  }
+};
+$("neteaselogout").onclick = async () => {
+  try {
+    const r = await apiPost("/api/music/netease/logout", {});
+    if (!r.ok) { $("neteasehint").textContent = r.error || "退出失败"; return; }
+    $("neteasehint").textContent = "已退出网易云音乐登录";
+    renderNetease(r);
+  } catch (e) {
+    $("neteasehint").textContent = "退出失败：" + e.message;
+  }
+};
+
+/* ---------- QQ 音乐账号（与网易云同一套上游，platform 不同） ---------- */
+var qqmusicPage = "";
+function renderQQMusic(r) {
+  const el = $("qqmusicstatus");
+  if (!el) return;
+  qqmusicPage = r.credential_page || "";
+  if (!r.online) {
+    el.textContent = "账号状态：N.E.K.O. 未运行，无法读取";
+    return;
+  }
+  el.textContent = r.logged_in
+    ? "账号状态：已登录 QQ 音乐 · Cookie " + (r.cookies_count || 0) + " 条"
+    : "账号状态：未登录（部分歌曲可能取不到）";
+}
+async function loadQQMusic() {
+  try {
+    renderQQMusic(await apiGet("/api/music/qqmusic"));
+  } catch (e) {
+    const el = $("qqmusicstatus");
+    if (el) el.textContent = "账号状态：读取失败";
+  }
+}
+$("qqmusicrefresh").onclick = () => { loadQQMusic(); };
+$("qqmusicpage").onclick = () => {
+  if (qqmusicPage) window.open(qqmusicPage, "_blank", "noopener");
+  else loadQQMusic();
+};
+$("qqmusiclogin").onclick = async () => {
+  const value = ($("qqmusiccookie").value || "").trim();
+  if (!value) {
+    $("qqmusichint").textContent = "先粘贴 QQ 音乐的 Cookie。";
+    return;
+  }
+  $("qqmusichint").textContent = "正在登录…";
+  try {
+    const r = await apiPost("/api/music/qqmusic/login", { cookie: value });
+    if (!r.ok) { $("qqmusichint").textContent = r.error || "登录失败"; return; }
+    $("qqmusiccookie").value = "";
+    $("qqmusichint").textContent = r.message || "已登录 QQ 音乐";
+    renderQQMusic(r);
+  } catch (e) {
+    $("qqmusichint").textContent = "登录失败：" + e.message;
+  }
+};
+$("qqmusiclogout").onclick = async () => {
+  try {
+    const r = await apiPost("/api/music/qqmusic/logout", {});
+    if (!r.ok) { $("qqmusichint").textContent = r.error || "退出失败"; return; }
+    $("qqmusichint").textContent = "已退出 QQ 音乐登录";
+    renderQQMusic(r);
+  } catch (e) {
+    $("qqmusichint").textContent = "退出失败：" + e.message;
+  }
+};
+$("qqmusicsearch").onclick = async () => {
+  const q = ($("qqmusicquery").value || "").trim();
+  const hint = $("qqmusichint");
+  if (!q) { hint.textContent = "先输入歌名、歌手或文件名。"; return; }
+  hint.textContent = "正在搜索 QQ 音乐…";
+  try {
+    const r = await apiGet("/api/music/qqmusic/search?q=" + encodeURIComponent(q));
+    const items = r.items || [];
+    renderMusicList("qqmusicresults", items, "QQ 音乐没有找到，换个关键词试试。");
+    hint.textContent = r.error ? r.error : ("找到 " + items.length + " 首，点「播放」让若琪放。");
+  } catch (e) {
+    hint.textContent = "搜索失败：" + e.message;
+  }
+};
+$("qqmusicquery").onkeydown = (e) => {
+  if (e.key === "Enter") $("qqmusicsearch").click();
+};
+
+/* 在线点歌的结果才逐条渲染；本地曲库永远不整体下发。 */
+function renderMusicList(boxId, items, emptyText) {
+  const box = $(boxId);
+  if (!box) return;
+  if (!items.length) {
+    box.innerHTML = '<div class="hintline">' + escapeHtml(emptyText) + '</div>';
+    return;
+  }
+  box.innerHTML = items.map((it, i) =>
+    '<div class="row"><div class="row-text">' +
+      '<div class="t">' + escapeHtml(it.name) + '</div>' +
+      '<div class="d">' + escapeHtml(it.artist || "") + '</div>' +
+    '</div><button class="btn" data-music-index="' + i + '">播放</button></div>'
+  ).join("");
+  box.querySelectorAll("button[data-music-index]").forEach(btn => {
+    btn.onclick = () => playMusic(items[Number(btn.dataset.musicIndex)]);
+  });
+}
+function watchAudio() {
+  if (musicPoll) clearInterval(musicPoll);
+  let ticks = 0;
+  musicPoll = setInterval(async () => {
+    if (++ticks > 1200) { clearInterval(musicPoll); musicPoll = null; return; }
+    try {
+      const s = await apiGet("/api/status");
+      const a = s.audio || {};
+      if (a.state === "idle") {
+        // In shuffle mode the host immediately queues the next song, so
+        // a momentary idle is a transition, not the end of playback.
+        if (musicShuffle) { musicState("猫娘正在挑下一首…"); return; }
+        clearInterval(musicPoll); musicPoll = null;
+        musicState("播放完毕");
+      } else if (a.state === "error") {
+        clearInterval(musicPoll); musicPoll = null;
+        musicState("设备端播放失败，请查看设备日志");
+      }
+    } catch (e) { /* a transient poll failure must not stop playback */ }
+  }, 1500);
+}
+async function playMusic(item) {
+  musicState("正在准备：" + (item.name || "音频"));
+  try {
+    const r = await apiPost("/api/music/play", { item: item });
+    if (!r.ok) { musicState("播放失败：" + r.error); return; }
+    musicState("正在播放：" + r.title + (r.transcoded ? "（已转为兼容格式）" : ""));
+    musicHint(r.transcode_error
+      ? "转码失败，改用原文件：" + r.transcode_error
+      : "等设备下载后开始播放；封面与歌词会显示在若琪屏幕上。");
+    watchAudio();
+  } catch (e) {
+    musicState("播放失败：" + e.message);
+  }
+}
+async function loadMusicIndexOnly(tries) {
+  try {
+    const r = await apiGet("/api/music/folders");
+    renderIndex(r.index);
+    if (r.index && r.index.state === "scanning" && tries > 0) {
+      setTimeout(() => loadMusicIndexOnly(tries - 1), 1200);
+    }
+  } catch (e) { /* the next visit to the tab retries */ }
+}
+/* Roon：屏幕显示 + 语音/按钮遥控，声音由 Roon 自己的 AirPlay 区域输出。 */
+async function loadRoonLyricRoots() {
+  try {
+    const r = await apiGet("/api/music/folders");
+    const el = $("roonlyricsroot");
+    if (el && document.activeElement !== el) {
+      el.value = (r.lyrics_roots || []).join(", ");
+    }
+  } catch (e) { /* 下次进这个页签会重试 */ }
+}
+async function loadRoon() {
+  loadRoonLyricRoots();
+  try {
+    const s = await apiGet("/api/roon/status");
+    const stages = {
+      disabled: "已关闭（Roon 桥未运行）",
+      starting: "正在启动 Roon 桥…",
+      offline: "未连接（Roon 桥没在跑）",
+      waiting_authorisation: "等待授权：请在 Roon → 设置 → 扩展 里启用 Rokid Allen Bridge",
+      ready: "已连接"
+    };
+    const enabled = s.enabled !== false;
+    $("roonpower").checked = enabled;
+    ["roonrefresh", "roonzone", "roonzonesave", "roonprev", "roonplay",
+     "roonnext", "roonstop", "roonvoldown", "roonvolup", "roontarget"]
+      .forEach(id => { $(id).disabled = !enabled; });
+    $("roonstatus").textContent = "状态：" + (stages[s.stage] || s.stage || "未知");
+    if (!enabled) {
+      $("rooncore").textContent = "Core：未启用";
+      $("roonzone").innerHTML = '<option value="">（Roon 已关闭）</option>';
+      $("roontrack").textContent = "当前曲目：—";
+      return;
+    }
+    const cfg = s.settings || {};
+    $("rooncore").textContent = "Core：" + (cfg.host || "未配置") + ":" +
+      (cfg.port || 9330) +
+      (s.core && s.core.display_name ? "（" + s.core.display_name + "）" : "");
+    const zones = s.zones || [];
+    const select = $("roonzone");
+    const current = s.zone_id || (s.zone && s.zone.zone_id) || "";
+    select.innerHTML = zones.length
+      ? zones.map(z => '<option value="' + escapeHtml(z.zone_id) + '">' +
+          escapeHtml(z.display_name || z.zone_id) + "</option>").join("")
+      : '<option value="">（暂无区域）</option>';
+    if (current) select.value = current;
+    const z = s.zone || {};
+    $("roontrack").textContent = "当前曲目：" +
+      (z.title ? ((z.artist ? z.artist + " – " : "") + z.title) : "—") +
+      (z.state ? "（" + z.state + "）" : "");
+    if (s.target) $("roontarget").value = s.target;
+  } catch (e) {
+    $("roonstatus").textContent = "状态：读取失败（" + e.message + "）";
+  }
+}
+async function roonControl(action, value) {
+  try {
+    const payload = value === undefined ? { action } : { action, value };
+    const r = await apiPost("/api/roon/control", payload);
+    if (!r.ok) $("roonhint").textContent = r.error || "控制失败";
+    setTimeout(loadRoon, 700);
+  } catch (e) {
+    $("roonhint").textContent = "控制失败：" + e.message;
+  }
+}
+$("roonpower").onchange = async () => {
+  const enabled = $("roonpower").checked;
+  $("roonhint").textContent = enabled ? "正在启动 Roon 桥…" : "正在关闭 Roon 桥…";
+  try {
+    const r = await apiPost("/api/roon/power", { enabled });
+    if (!r.ok) throw new Error(r.error || "操作失败");
+    $("roonhint").textContent = enabled
+      ? "已启用；首次使用请在 Roon → 设置 → 扩展 里启用 Rokid Allen Bridge"
+      : "已关闭；Roon 桥已停止，语音控制回到本地音乐";
+  } catch (e) {
+    $("roonpower").checked = !enabled;
+    $("roonhint").textContent = "切换失败：" + e.message;
+  }
+  // The Node sidecar needs a moment to bind 8766 and pair with the Core.
+  // Refresh twice so the card does not stay on "starting".
+  setTimeout(loadRoon, 1200);
+  if (enabled) setTimeout(loadRoon, 4000);
+};
+$("roonrefresh").onclick = () => loadRoon();
+$("roonlyricspick").onclick = async () => {
+  $("roonhint").textContent = "已打开 macOS 文件夹选择框，请在 Finder 里选…";
+  try {
+    const r = await apiPost("/api/music/pick-folder", {});
+    if (!r.ok) { $("roonhint").textContent = r.error || "系统选择框不可用"; return; }
+    $("roonlyricsroot").value = r.path;
+    $("roonhint").textContent = "已选中，点「保存」生效";
+  } catch (e) {
+    $("roonhint").textContent = "系统选择框失败：" + e.message;
+  }
+};
+$("roonlyricssave").onclick = async () => {
+  const raw = ($("roonlyricsroot").value || "").trim();
+  const roots = raw ? raw.split(/[,，]\s*/).filter(Boolean) : null;
+  try {
+    const r = await apiPost("/api/music/folders", { lyrics_roots: roots });
+    if (!r.ok) { $("roonhint").textContent = "保存失败：" + r.error; return; }
+    $("roonlyricsroot").value = (r.lyrics_roots || []).join(", ");
+    $("roonhint").textContent = roots === null
+      ? "已恢复自动推断（音乐文件夹的上一级）；当前曲目会重新找歌词"
+      : "已保存；当前曲目会重新从该曲库读内嵌歌词";
+  } catch (e) {
+    $("roonhint").textContent = "保存失败：" + e.message;
+  }
+};
+$("roonplay").onclick = () => roonControl("play_pause");
+$("roonprev").onclick = () => roonControl("prev");
+$("roonnext").onclick = () => roonControl("next");
+$("roonstop").onclick = () => roonControl("stop");
+$("roonvolup").onclick = () => roonControl("volume_up");
+$("roonvoldown").onclick = () => roonControl("volume_down");
+$("roonzonesave").onclick = async () => {
+  try {
+    await apiPost("/api/roon/settings", { zone_id: $("roonzone").value });
+    $("roonhint").textContent = "已设为目标区域";
+    loadRoon();
+  } catch (e) {
+    $("roonhint").textContent = "保存失败：" + e.message;
+  }
+};
+$("roontarget").onchange = async () => {
+  try {
+    await apiPost("/api/roon/settings", { target: $("roontarget").value });
+    $("roonhint").textContent = "语音控制目标已更新";
+    loadRoon();
+  } catch (e) {
+    $("roonhint").textContent = "保存失败：" + e.message;
+  }
+};
+
+/* 转码说明默认隐藏，点「?」才展开/收起 */
+$("transcodehelp").onclick = () => {
+  const el = $("musictranscodehint");
+  el.style.display = (el.style.display === "none") ? "block" : "none";
+};
+
+async function loadMusic() {
+  try {
+    const r = await apiGet("/api/music/folders");
+    if (!musicFolderDirty) musicFolders = (r.folders || []).slice();
+    musicShuffle = !!r.shuffle;
+    $("musicshuffle").checked = musicShuffle;
+    renderFolders();
+    renderIndex(r.index);
+    if (r.index && r.index.state === "scanning") {
+      setTimeout(() => loadMusicIndexOnly(8), 1200);
+    }
+    loadNetease();
+    loadRoon();
+    loadQQMusic();
+  } catch (e) {
+    musicState("读取音乐库失败：" + e.message);
+    loadNetease();
+    loadRoon();
+    loadQQMusic();
+  }
+}
+$("musictest").onclick = () => playMusic({ kind: "test", name: "试音提示" });
+$("musicstop").onclick = async () => {
+  if (musicPoll) { clearInterval(musicPoll); musicPoll = null; }
+  try {
+    await apiPost("/api/music/stop", {});
+    musicState("已停止");
+  } catch (e) {
+    musicState("停止失败：" + e.message);
+  }
+};
+$("musicshuffle").onchange = async () => {
+  const enabled = $("musicshuffle").checked;
+  try {
+    const r = await apiPost("/api/music/shuffle", { enabled: enabled });
+    if (r.error) {
+      $("musicshuffle").checked = !enabled;
+      musicState("开启失败：" + r.error);
+      return;
+    }
+    musicShuffle = r.enabled;
+    musicState(r.enabled
+      ? "猫娘随机连播已开启" + (r.playing ? " · " + r.playing : "")
+      : "猫娘随机连播已关闭");
+    if (r.enabled) watchAudio();
+  } catch (e) {
+    $("musicshuffle").checked = !enabled;
+    musicState("操作失败：" + e.message);
+  }
+};
+// Voice commands and these buttons go through the same host entry point,
+// so they can never disagree about what "next" means.
+const MUSIC_STATE_TEXT = { playing: "播放中", paused: "已暂停", idle: "已停止", error: "播放失败" };
+async function musicControl(action, label) {
+  try {
+    const r = await apiPost("/api/music/control", { action: action });
+    if (!r.applied) {
+      musicState(label + "未生效" + (r.reason ? "：" + r.reason : "（当前没有在播放）"));
+      return;
+    }
+    musicState(label + (r.title ? " · " + r.title : "")
+      + (r.state ? "（" + (MUSIC_STATE_TEXT[r.state] || r.state) + "）" : ""));
+    if (!r.title && r.state === "playing" && !musicPoll) watchAudio();
+    if (r.title) watchAudio();
+  } catch (e) {
+    musicState(label + "失败：" + e.message);
+  }
+}
+$("musicprev").onclick = () => musicControl("prev", "上一首");
+$("musicnext").onclick = () => musicControl("next", "下一首");
+$("musicstop").onclick = () => musicControl("stop", "停止播放");
+$("musicpause").onclick = async () => {
+  try {
+    const s = await apiGet("/api/status");
+    const paused = s.audio && s.audio.state === "paused";
+    await musicControl(paused ? "resume" : "pause", paused ? "继续播放" : "暂停");
+  } catch (e) {
+    musicState("操作失败：" + e.message);
+  }
+};
+async function musicVolume(action, value, label) {
+  try {
+    const r = await apiPost("/api/music/volume", { action: action, value: value });
+    if (!r.applied) { musicState("音量操作失败：" + (r.reason || "")); return; }
+    musicState("音量：" + label);
+    setTimeout(loadMusicVolume, 900);
+  } catch (e) {
+    musicState("音量操作失败：" + e.message);
+  }
+}
+async function loadMusicVolume() {
+  try {
+    const s = await apiGet("/api/status");
+    const a = s.audio || {};
+    const el = $("musicvolumestatus");
+    if (a.volume == null) { el.textContent = "音量：等设备回报"; return; }
+    el.textContent = "音量：" + (a.muted ? "已静音" : (a.volume + " / " + (a.volume_max || "?")));
+  } catch (e) { /* a transient poll failure is fine */ }
+}
+$("musicvolup").onclick = () => musicVolume("up", null, "调大");
+$("musicvoldown").onclick = () => musicVolume("down", null, "调小");
+$("musicvolmute").onclick = async () => {
+  try {
+    const s = await apiGet("/api/status");
+    const muted = s.audio && s.audio.muted;
+    await musicVolume(muted ? "unmute" : "mute", null, muted ? "取消静音" : "静音");
+  } catch (e) {
+    musicState("音量操作失败：" + e.message);
+  }
+};
+loadMusicVolume();
+loadRoon();
+$("musicparsebtn").onclick = async () => {
+  const el = $("musicparseresult");
+  const text = ($("musicparseinput").value || "").trim();
+  if (!text) { el.textContent = "先输入一句话。"; return; }
+  try {
+    const r = await apiPost("/api/music/parse", { text: text });
+    const p = r.parsed;
+    if (!p) { el.textContent = "这句不会被当成点歌，会交给对话处理。"; return; }
+    if (p.random) { el.textContent = "识别为随机点歌 → 从本地曲库随机挑一首。"; return; }
+    el.textContent = "歌名「" + (p.title || p.phrase) + "」"
+      + (p.artist ? " · 歌手「" + p.artist + "」" : "")
+      + " → 先搜本地，再搜网易云。";
+  } catch (e) {
+    el.textContent = "解析失败：" + e.message;
+  }
+};
+$("musicfolderadd").onclick = () => {
+  const value = ($("musicfolderinput").value || "").trim();
+  if (!value) { folderStatus("先粘贴一个文件夹路径"); return; }
+  if (musicFolders.indexOf(value) >= 0) {
+    folderStatus("这个文件夹已经在列表里");
+    return;
+  }
+  musicFolders.push(value);
+  $("musicfolderinput").value = "";
+  musicFolderDirty = true;
+  folderStatus("有未保存的改动");
+  renderFolders();
+};
+$("musicfolderinput").onkeydown = (e) => {
+  if (e.key === "Enter") $("musicfolderadd").click();
+};
+$("musicfolderssave").onclick = async () => {
+  try {
+    const r = await apiPost("/api/music/folders", { folders: musicFolders });
+    if (!r.ok) { folderStatus("保存失败：" + r.error); return; }
+    musicFolders = (r.folders || []).slice();
+    musicFolderDirty = false;
+    folderStatus("已保存");
+    renderFolders();
+    renderIndex(r.index);
+    musicHint("文件夹已保存，索引正在后台重建。");
+  } catch (e) {
+    folderStatus("保存失败：" + e.message);
+  }
+};
+$("musicreindex").onclick = async () => {
+  try {
+    const r = await apiPost("/api/music/reindex", {});
+    renderIndex(r.index);
+    musicHint("正在后台重建索引…");
+    setTimeout(() => loadMusicIndexOnly(8), 1200);
+  } catch (e) {
+    musicHint("重建失败：" + e.message);
+  }
+};
+$("musicsearch").onclick = async () => {
+  const q = ($("musicquery").value || "").trim();
+  if (!q) { musicHint("先输入歌名或歌手。"); return; }
+  musicHint("正在搜索…");
+  try {
+    const r = await apiGet("/api/music/search?q=" + encodeURIComponent(q));
+    if (r.error) { musicHint(r.error); renderMusicList("musicresults", [], ""); return; }
+    renderMusicList("musicresults", r.items || [], "没有找到。");
+    musicHint("找到 " + (r.items || []).length + " 首，点「播放」让若琪放。");
+  } catch (e) {
+    musicHint("搜索失败：" + e.message);
+  }
+};
+$("musicquery").onkeydown = (e) => { if (e.key === "Enter") $("musicsearch").click(); };
+
+/* 本地曲库搜索：只下发匹配的一页，永不把上万首整体渲染出来。 */
+$("musiclocalsearch").onclick = async () => {
+  const q = ($("musiclocalquery").value || "").trim();
+  const hint = $("musiclocalhint");
+  if (!q) { hint.textContent = "先输入歌名、歌手或文件名。"; return; }
+  hint.textContent = "正在搜索本地曲库…";
+  try {
+    const r = await apiGet("/api/music/search-local?q=" + encodeURIComponent(q));
+    const items = r.items || [];
+    renderMusicList("musiclocalresults", items, "没有找到，换个关键词试试。");
+    hint.textContent = r.error ? r.error :
+      ("匹配 " + (r.total || 0) + " 首" +
+       (r.has_more ? "，显示前 " + items.length + " 首" : "") +
+       "；点「播放」让若琪放。");
+  } catch (e) {
+    hint.textContent = "搜索失败：" + e.message;
+  }
+};
+$("musiclocalquery").onkeydown = (e) => {
+  if (e.key === "Enter") $("musiclocalsearch").click();
+};
+
+/* ---------- WorkBuddy 授权 ---------- */
+/* 授权不再有独立按钮：它是设置弹窗里的一个分类。目前需要单独登录的
+   助手只有 WorkBuddy（巴蒂），所以这个分类固定指向它，不依赖左侧
+   当前选中了哪个助手。以后有第二个需要授权的助手再做成列表。 */
+let authAgent = "";
+let authLoginId = "";
+let authTimer = null;
+function currentAuthAgent() {
+  const info = agents["workbuddy"];
+  return (info && info.connection) ? "workbuddy" : "";
+}
+async function openAuth(id) {
+  authAgent = id;
+  const info = agents[id] || {};
+  $("authtitle").textContent = (info.name || "巴蒂") + "（WorkBuddy）· 登录状态";
+  $("authsub").textContent = "用浏览器登录 WorkBuddy 账号，巴蒂才能替你干活。授权信息只存在电脑本机的 auth 文件里（权限 0600），不会进入 APK 或浏览器，也不会被提交到仓库。";
+  $("authlinkgrp").style.display = "none";
+  $("authlink").value = "";
+  try {
+    const s = await apiGet("/api/agent-auth?agent=" + encodeURIComponent(id));
+    $("authmodel").value = (agents[id] && agents[id].model) || "";
+    if (s.configured) {
+      $("authstate").textContent = "已登录：" + (s.nickname || "WorkBuddy 账号");
+      $("authlogin").textContent = "重新登录";
+    } else {
+      $("authstate").textContent = "还没有登录。";
+      $("authlogin").textContent = "浏览器登录";
+    }
+  } catch (e) {
+    toast("读取授权状态失败：" + e.message);
+  }
+}
+$("authlogin").onclick = async () => {
+  if (!authAgent) return;
+  const agent = authAgent;
+  $("authlogin").disabled = true;
+  $("authstate").textContent = "正在打开登录页……";
+  try {
+    const r = await apiGet("/api/agent-auth/start?agent=" + encodeURIComponent(agent));
+    if (r.error) { $("authstate").textContent = r.error; $("authlogin").disabled = false; return; }
+    authLoginId = r.login_id || "";
+    $("authlinkgrp").style.display = "";
+    $("authlink").value = r.auth_url || "";
+    $("authstate").textContent = "请在浏览器里完成登录，完成后这里会自动更新。";
+    // Open the page in the browser as well, so the user only has to log in.
+    try { window.open(r.auth_url, "_blank"); } catch (e) { /* the link is shown too */ }
+    startAuthPolling(agent);
+  } catch (e) {
+    $("authstate").textContent = "发起登录失败：" + e.message;
+    $("authlogin").disabled = false;
+  }
+};
+function startAuthPolling(agent) {
+  stopAuthPolling();
+  authTimer = setInterval(async () => {
+    if (!authLoginId) { stopAuthPolling(); return; }
+    try {
+      const r = await apiPost("/api/agent-auth/poll", { agent: agent, login_id: authLoginId });
+      if (!r.done) return;
+      stopAuthPolling();
+      if (r.error) {
+        $("authstate").textContent = r.error;
+        $("authlogin").disabled = false;
+        return;
+      }
+      const who = (r.account && r.account.nickname) || "WorkBuddy 账号";
+      $("authstate").textContent = "已登录：" + who;
+      $("authlogin").disabled = false;
+      $("authlogin").textContent = "重新登录";
+      toast(who + " 登录成功");
+      await pollStatus();
+      await loadModels();
+    } catch (e) {
+      stopAuthPolling();
+      $("authstate").textContent = "查询登录状态失败：" + e.message;
+      $("authlogin").disabled = false;
+    }
+  }, 2000);
+}
+function stopAuthPolling() {
+  if (authTimer) { clearInterval(authTimer); authTimer = null; }
+}
+
+/* ---------- 输入 ---------- */
+const ta = $("input");
+function autoGrow() { ta.style.height = "auto"; ta.style.height = Math.min(180, ta.scrollHeight) + "px"; }
+function placeholder() {
+  const name = selected === "direct" ? "若琪" : ((agents[selected] || {}).name || "若琪");
+  ta.placeholder = "和" + name + "说话…";
+}
+ta.addEventListener("input", autoGrow);
+
+/* 中文输入法打英文时，按回车是「把候选上屏」，不是发送。浏览器给这次
+   keydown 标 isComposing / keyCode 229；另外用 compositionstart/end 的
+   标记兜底，防止个别输入法把 compositionend 排在 keydown 之前。 */
+let imeComposing = false;
+let imeJustEnded = false;
+ta.addEventListener("compositionstart", () => { imeComposing = true; });
+ta.addEventListener("compositionend", () => {
+  imeComposing = false;
+  imeJustEnded = true;
+  setTimeout(() => { imeJustEnded = false; }, 0);
+});
+ta.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  if (imeComposing || imeJustEnded || e.isComposing || e.keyCode === 229) return;
+  const accel = e.metaKey || e.ctrlKey;
+  if (e.shiftKey && !accel) return;            // Shift+Enter 换行
+  e.preventDefault();
+  submit();                                    // Enter / ⌘Enter / Ctrl+Enter
+});
+$("btnsend").onclick = submit;
+
+async function submit() {
+  const text = ta.value.trim();
+  if (!text) return;
+  ta.value = "";
+  autoGrow();
+  $("btnsend").disabled = true;
+  try {
+    // 直接投给选中的助手：打字说的话不经过语音意图解析。
+    await apiPost("/api/chat", { text: text, agent: selected === "direct" ? "direct" : selected });
+    // 新消息要落到它自己的那份对话里，所以整份重新取一次。
+    await pollTranscript();
+  } catch (e) {
+    banner("发送失败：" + e.message);
+  } finally {
+    $("btnsend").disabled = false;
+  }
+}
+
+/* ---------- 模型菜单交互 ---------- */
+$("btnmodel").onclick = e => { e.stopPropagation(); $("modelmenu").classList.toggle("open"); };
+document.addEventListener("click", () => $("modelmenu").classList.remove("open"));
+$("modelmenu").onclick = e => e.stopPropagation();
+
+$("btnrefresh").onclick = () => {
+  // 刷新就是把每个助手的那份对话都清掉重画。
+  resetThreads();
+  loadThreads();
+  pollStatus();
+};
+$("btncopy").onclick = async () => {
+  // 复制当前助手那一份对话，不是所有助手混在一起的。
+  const t = threads[activeThreadKey()];
+  const items = t ? t.items : [];
+  const txt = items.map(e => `[${fmtTime(e.at)}] ${e.role === "user" ? "你" : agentName(e.agent)}: ${e.message}`).join("\n");
+  if (!txt) { toast("暂无对话"); return; }
+  try {
+    await navigator.clipboard.writeText(txt);
+    toast("已复制全部对话");
+  } catch (e) {
+    toast("复制失败");
+  }
+};
+
+/* ---------- 启动 ---------- */
+(async function boot() {
+  // 记住的那个 token 可能是旧的（配置重建过）。所以先问一次本机：
+  // /console-token 给的永远是当前的 token，问不到再用记住的那个。
+  // 这样坏 token 不会让页面停在空白状态。
+  const fresh = await fetchToken();
+  if (fresh) {
+    TOKEN = fresh;
+    try { localStorage.setItem("rokid_token", fresh); } catch (e) {}
+  } else if (!TOKEN) {
+    // 本机问不到，浏览器里也没有：只能靠地址里的 token。
+    bannerError("token", "缺少 token。请从 Mac 的 Rokid-Allen-Unbricked 重新打开控制台");
+  }
+
+  // 状态、对话、轮询分开做，一件事失败不许拖垮别的。
+  // 之前它们挤在一个 try 里：状态拿不到（哪怕只是一瞬），
+  // 整块都不再往下走，对话不加载、轮询也不开始，页面就停在空白，
+  // 直到用户手动刷新才恢复。
+  try {
+    const s = await apiGet("/api/status");
+    agents = s.agents || {};
+    if (s.art) art = s.art;
+    selected = s.selected_agent || "direct";
+    syncThreadVisibility();
+    renderAgents();
+    if (s.direct) renderDirectStatus(s.direct);
+    bannerClear("status");
+  } catch (e) {
+    // 页面停在空白状态是最糟的结果：用户不知道出了什么事。
+    // 所以这里一定要说出来，而且要说清楚能怎么办。
+    bannerError("status", "连不上主机：" + e.message + "。若提示 token 失效，请从 Mac App 重新打开控制台");
+  }
+
+  // 对话一定要加载：这是用户打开控制台最想看的东西。
+  await loadThreads();
+
+  // 模型单独取：它失败也不该影响对话。
+  try { await loadModels(); } catch (e) {}
+
+  // 轮询无条件开始。就算主机暂时 unreachable，两秒后还会再问，
+  // 主机一恢复对话就自己回来了，不必手动刷新。
+  setInterval(pollTranscript, 1200);
+  setInterval(pollStatus, 2500);
+})();
+</script>
+
+</body>
+</html>

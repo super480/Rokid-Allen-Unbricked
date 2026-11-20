@@ -1,0 +1,25 @@
+[plugin]
+name = "若琪桥接"
+description = "把若琪 R2 的语音作为一条可见消息注入 Mac 客户端当前猫娘对话。不占用 /ws/{角色} 连接，避免上游单槽 newest-wins 把桌面窗口顶掉。"
+short_description = "Relay Rokid voice turns into the desktop chat without a second WebSocket."
+keywords = ["rokid", "bridge", "若琪", "relay"]
+version = "0.1.0"
+id = "rokid_bridge"
+entry = "plugin.plugins.rokid_bridge:RokidBridgePlugin"
+
+[plugin.author]
+name = "Rokid-Allen-Unbricked"
+
+[plugin.sdk]
+recommended = ">=0.1.0,<0.2.0"
+supported = ">=0.1.0,<0.3.0"
+
+[plugin_runtime]
+enabled = true
+auto_start = true
+
+[rokid]
+# Loopback only. 48916 is taken by the bundled claude_companion plugin.
+port = 48917
+# Optional shared secret. Empty means loopback-only access (default).
+token = ""

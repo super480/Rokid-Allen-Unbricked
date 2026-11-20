@@ -1,0 +1,14 @@
+{
+  "name": "rokid-allen-roon-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Roon extension and local HTTP bridge for the Rokid Allen speaker",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "node-roon-api": "github:roonlabs/node-roon-api",
+    "node-roon-api-transport": "github:roonlabs/node-roon-api-transport",
+    "node-roon-api-image": "github:roonlabs/node-roon-api-image",
+    "ws": "^8.18.0"
+  }
+}

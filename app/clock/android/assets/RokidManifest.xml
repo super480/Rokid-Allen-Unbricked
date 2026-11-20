@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:rokid="http:www.rokid-inc.com">
+    <application
+        rokid:isSystem="false"
+        rokid:package="com.rokid.app.r5ef240ab9f64416fa0c9c69efd8e347e"
+        rokid:type="cut"
+        rokid:version="1.0.0"
+        rokid:idle = "true"
+        rokid:require_min_os="2.0.8">
+    </application>
+</manifest>

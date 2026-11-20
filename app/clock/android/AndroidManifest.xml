@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.rokid.app.r5ef240ab9f64416fa0c9c69efd8e347e">
+
+    <uses-sdk
+        android:minSdkVersion="19"
+        android:targetSdkVersion="19" />
+
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <application
+        android:allowBackup="false"
+        android:label="Rokid Clock">
+
+        <activity
+            android:name="cn.rokid.clock.ClockActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="com.rokid.app.r5ef240ab9f64416fa0c9c69efd8e347e" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <receiver
+            android:name="cn.rokid.clock.FaceReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.rokid.app.r5ef240ab9f64416fa0c9c69efd8e347e.SET_FACE" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

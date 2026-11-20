@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-label="打印进度示例">
+  <rect width="640" height="480" fill="#070d15"/>
+  <circle cx="320" cy="240" r="166" fill="none" stroke="#263243" stroke-width="16"/>
+  <circle cx="320" cy="240" r="166" fill="none" stroke="#66c1ed" stroke-width="16" pathLength="100" stroke-dasharray="25 100" transform="rotate(-90 320 240)"/>
+  <g fill="#f4f7fb" font-family="system-ui,sans-serif" text-anchor="middle">
+    <text x="320" y="194" font-size="28">打印进度</text>
+    <text x="320" y="268" font-size="63">25%</text>
+    <text x="320" y="324" font-size="22">示例 · 打印中</text>
+  </g>
+</svg>
