@@ -2,11 +2,12 @@ import AppKit
 import Foundation
 
 final class SetupWindow: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
-    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 530, height: 300),
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 550, height: 340),
                           styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
     let ip = NSTextField()
     let guardButton = NSButton(title: "连接并固化 ADB", target: nil, action: nil)
     let runButton = NSButton(title: "安装 Bridge 并打开控制台", target: nil, action: nil)
+    let downloadButton = NSButton(title: "下载 Mac 版 Platform-Tools", target: nil, action: nil)
     let adbButton = NSButton(title: "选择 adb…", target: nil, action: nil)
     let message = NSTextField(wrappingLabelWithString: "请使用可信家庭局域网。音箱需已开启网络 ADB。固化会在目标设备上保存调试端口 5555。")
     var verifiedIP: String?
@@ -28,15 +29,21 @@ final class SetupWindow: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
         ip.stringValue = UserDefaults.standard.string(forKey: "deviceIP") ?? ""
         let buttons = NSStackView(views: [guardButton, runButton])
         buttons.spacing = 8
-        [title, ip, buttons, adbButton, message].forEach { group.addArrangedSubview($0) }
+        let adbButtons = NSStackView(views: [downloadButton, adbButton])
+        adbButtons.spacing = 8
+        let adbHint = NSTextField(wrappingLabelWithString:
+            "首次使用：在官方页面选「Download SDK Platform-Tools for Mac」。解压后点「选择 adb…」，选 platform-tools 文件夹或里面的 adb 文件。")
+        [title, ip, buttons, adbButtons, adbHint, message].forEach { group.addArrangedSubview($0) }
         NSLayoutConstraint.activate([
             group.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24),
             group.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24),
             group.topAnchor.constraint(equalTo: content.topAnchor, constant: 22),
+            adbHint.widthAnchor.constraint(equalTo: group.widthAnchor),
             message.widthAnchor.constraint(equalTo: group.widthAnchor),
             ip.widthAnchor.constraint(equalTo: group.widthAnchor)])
         guardButton.target = self; guardButton.action = #selector(guardADB)
         runButton.target = self; runButton.action = #selector(startBridge)
+        downloadButton.target = self; downloadButton.action = #selector(downloadADB)
         adbButton.target = self; adbButton.action = #selector(selectADB)
         runButton.isEnabled = false
         window.center()
@@ -50,16 +57,30 @@ final class SetupWindow: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
         runButton.isEnabled = false
     }
 
+    @objc func downloadADB() {
+        if let url = URL(string: "https://developer.android.com/tools/releases/platform-tools#downloads") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     @objc func selectADB() {
         let panel = NSOpenPanel()
-        panel.message = "选择 Android SDK Platform-Tools 的 adb 可执行文件"
-        if panel.runModal() == .OK, let url = panel.url, url.lastPathComponent == "adb",
-           FileManager.default.isExecutableFile(atPath: url.path) {
-            UserDefaults.standard.set(url.path, forKey: "adbPath")
-            verifiedIP = nil
-            runButton.isEnabled = false
-            message.stringValue = "已选择 adb。请连接并校验设备。"
+        panel.message = "选解压后的 platform-tools 文件夹，或里面的 adb 文件。"
+        panel.canChooseDirectories = true
+        panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+        let executable = isDirectory ? url.appendingPathComponent("adb") : url
+        guard executable.lastPathComponent == "adb",
+              (try? executable.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
+              FileManager.default.isExecutableFile(atPath: executable.path) else {
+            message.stringValue = "这里没有可运行的 adb。请先解压 Mac 版 ZIP，再选择其中的 platform-tools 文件夹。"
+            return
         }
+        UserDefaults.standard.set(executable.path, forKey: "adbPath")
+        verifiedIP = nil
+        runButton.isEnabled = false
+        message.stringValue = "已选择 adb。请输入若琪 IP，再连接并固化 ADB。"
     }
     @objc func guardADB() { launch("guard") }
     @objc func startBridge() { if verifiedIP == ip.stringValue { launch("run") } }
