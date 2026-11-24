@@ -69,8 +69,8 @@ let id = 1; const pend = new Map();
       builtin: document.getElementById('minibuiltin-clock').textContent
     };
   })()`);
-  check("待机时钟卡在位：十个表盘按钮 / 提示 / 自定义说法 / 保存按钮",
-    surface.buttons.join(",") === "grid,digital,orbit,weekday,minimal,lagoon,milk,forest,roman,next"
+  check("待机时钟卡在位：十四个表盘按钮 / 提示 / 自定义说法 / 保存按钮",
+    surface.buttons.join(",") === "grid,digital,orbit,weekday,minimal,lagoon,milk,forest,roman,factory_sunset,factory_fantasy,factory_bluesky,factory_jellyfish,next"
     && surface.hasInput && surface.hasSave, surface);
   check("默认表盘为 2×2 数字", surface.hint.includes("2×2 数字"), surface);
   check("内置说法是关键词列表", surface.builtin.includes("表盘") && surface.builtin.includes("关键词"),
@@ -139,6 +139,13 @@ let id = 1; const pend = new Map();
   const romanHint = await ev(`document.getElementById('clockfacehint').textContent`);
   check("黑曜罗马可选且回填中文名", romanState.face === "roman"
     && romanState.faces.includes("roman") && romanHint.includes("黑曜罗马"), romanState);
+
+  await ev(`document.querySelector('[data-clock-face="factory_jellyfish"]').click()`);
+  await sleep(900);
+  const factoryState = await ev(`apiGet('/api/clock')`);
+  const factoryHint = await ev(`document.getElementById('clockfacehint').textContent`);
+  check("原厂水母可选并回填中文名", factoryState.face === "factory_jellyfish"
+    && factoryHint.startsWith("当前表盘：原厂水母"), factoryState);
 
   // 3. Back to grid through the button.
   await ev(`document.querySelector('[data-clock-face="grid"]').click()`);

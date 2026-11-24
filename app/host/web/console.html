@@ -886,6 +886,17 @@
               <div class="hintline">没有 Roon 时关掉这个开关：不启动 Roon 桥进程、不轮询 Core、语音控制回到本地音乐；若琪屏幕上的 Roon 页也会收起。设置会保留，重启服务后依然生效。</div>
               <div class="row">
                 <div class="row-text">
+                  <div class="t">Roon 服务器地址</div>
+                  <div class="d">Roon Core 的局域网 IP 和端口。改完保存会立即断开重连；换到新 Core 后需在 Roon → 设置 → 扩展 里重新 Enable「Rokid Allen Bridge」</div>
+                </div>
+              </div>
+              <div class="row">
+                <input id="roonhost" class="input-mid" style="flex:2;min-width:160px" placeholder="Roon Core IP" spellcheck="false">
+                <input id="roonport" class="input-mid" style="flex:1;min-width:80px" placeholder="9330" inputmode="numeric">
+                <button class="btn btn-tiny" id="roonhostsave">保存</button>
+              </div>
+              <div class="row">
+                <div class="row-text">
                   <div class="t" id="roonstatus">状态：检测中…</div>
                   <div class="d" id="rooncore">Core：读取中…</div>
                 </div>
@@ -1197,8 +1208,8 @@
               <div class="card-title">待机时钟</div>
               <div class="row">
                 <div class="row-text">
-                  <div class="t">自研待机表盘 · 可换表盘</div>
-                  <div class="d">占坑原视频待机场景（type 4），15 秒无操作自动上屏；点按钮或喊「换个表盘」即时切换，选择重启后保留。表盘文件在设备 /sdcard/RokidClock/faces/，放 face.json 即可扩充。</div>
+                  <div class="t">自研与原厂待机表盘</div>
+                  <div class="d">选择后会在待机时显示。若已在待机界面，点按钮或喊「换个表盘」即可切换，选择重启后保留。</div>
                 </div>
               </div>
               <div class="row" style="gap:8px;flex-wrap:wrap">
@@ -1211,6 +1222,10 @@
                 <button class="btn" data-clock-face="milk">牛奶派对</button>
                 <button class="btn" data-clock-face="forest">林间夜色</button>
                 <button class="btn" data-clock-face="roman">黑曜罗马</button>
+                <button class="btn" data-clock-face="factory_sunset">原厂日落</button>
+                <button class="btn" data-clock-face="factory_fantasy">原厂梦幻</button>
+                <button class="btn" data-clock-face="factory_bluesky">原厂蓝天</button>
+                <button class="btn" data-clock-face="factory_jellyfish">原厂水母</button>
                 <button class="btn" data-clock-face="next">换一个</button>
               </div>
               <div class="hintline" id="clockfacehint">读取中…</div>
@@ -2488,7 +2503,7 @@ async function loadClock() {
     const info = await apiGet("/api/clock");
     const face = info.face || "grid";
     const faces = [...new Set(["grid", "digital", "orbit", "weekday", "minimal", "lagoon", "milk", "forest", "roman", ...(info.faces || [])])];
-    const names = { grid: "2×2 数字", digital: "电子日历", orbit: "双旋转刻度", weekday: "星期环", minimal: "双圆极简", lagoon: "蓝紫鳄鱼", milk: "牛奶派对", forest: "林间夜色", roman: "黑曜罗马" };
+    const names = { grid: "2×2 数字", digital: "电子日历", orbit: "双旋转刻度", weekday: "星期环", minimal: "双圆极简", lagoon: "蓝紫鳄鱼", milk: "牛奶派对", forest: "林间夜色", roman: "黑曜罗马", factory_sunset: "原厂日落", factory_fantasy: "原厂梦幻", factory_bluesky: "原厂蓝天", factory_jellyfish: "原厂水母" };
     $("clockfacehint").textContent =
       "当前表盘：" + (names[face] || face) + " · 可选：" +
       faces.map(f => names[f] || f).join(" / ");
@@ -2511,7 +2526,7 @@ document.querySelectorAll("[data-clock-face]").forEach(btn => {
     if (out) out.textContent = "正在切换表盘…";
     try {
       const r = await apiPost("/api/clock/face", { face });
-      const names = { grid: "2×2 数字", digital: "电子日历", orbit: "双旋转刻度", weekday: "星期环", minimal: "双圆极简", lagoon: "蓝紫鳄鱼", milk: "牛奶派对", forest: "林间夜色", roman: "黑曜罗马" };
+      const names = { grid: "2×2 数字", digital: "电子日历", orbit: "双旋转刻度", weekday: "星期环", minimal: "双圆极简", lagoon: "蓝紫鳄鱼", milk: "牛奶派对", forest: "林间夜色", roman: "黑曜罗马", factory_sunset: "原厂日落", factory_fantasy: "原厂梦幻", factory_bluesky: "原厂蓝天", factory_jellyfish: "原厂水母" };
       const now = r.face || face;
       $("clockfacehint").textContent =
         "当前表盘：" + (names[now] || now) + " · 可选：" +
@@ -3546,7 +3561,8 @@ async function loadRoon() {
     const enabled = s.enabled !== false;
     $("roonpower").checked = enabled;
     ["roonrefresh", "roonzone", "roonzonesave", "roonprev", "roonplay",
-     "roonnext", "roonstop", "roonvoldown", "roonvolup", "roontarget"]
+     "roonnext", "roonstop", "roonvoldown", "roonvolup", "roontarget",
+     "roonhost", "roonport", "roonhostsave"]
       .forEach(id => { $(id).disabled = !enabled; });
     $("roonstatus").textContent = "状态：" + (stages[s.stage] || s.stage || "未知");
     if (!enabled) {
@@ -3556,6 +3572,13 @@ async function loadRoon() {
       return;
     }
     const cfg = s.settings || {};
+    // 回填服务器地址输入框（正在输入时不覆盖）
+    if (document.activeElement !== $("roonhost")) {
+      $("roonhost").value = cfg.host || "";
+    }
+    if (document.activeElement !== $("roonport")) {
+      $("roonport").value = cfg.port ? String(cfg.port) : "";
+    }
     $("rooncore").textContent = "Core：" + (cfg.host || "未配置") + ":" +
       (cfg.port || 9330) +
       (s.core && s.core.display_name ? "（" + s.core.display_name + "）" : "");
@@ -3644,6 +3667,32 @@ $("roonzonesave").onclick = async () => {
   } catch (e) {
     $("roonhint").textContent = "保存失败：" + e.message;
   }
+};
+$("roonhostsave").onclick = async () => {
+  const host = ($("roonhost").value || "").trim();
+  const portRaw = ($("roonport").value || "").trim();
+  if (!host) {
+    $("roonhint").textContent = "请填写 Roon 服务器地址";
+    return;
+  }
+  if (portRaw && !/^\d{1,5}$/.test(portRaw)) {
+    $("roonhint").textContent = "端口只能是数字（默认 9330）";
+    return;
+  }
+  const payload = { host };
+  if (portRaw) payload.port = portRaw;
+  $("roonhint").textContent = "正在保存并重连到 " + host + "…";
+  try {
+    const r = await apiPost("/api/roon/settings", payload);
+    if (!r.ok) throw new Error(r.error || "保存失败");
+    $("roonhint").textContent = "已保存，正在重连。换到新 Core 后请在 Roon → 设置 → 扩展 里重新 Enable「Rokid Allen Bridge」";
+  } catch (e) {
+    $("roonhint").textContent = "保存失败：" + e.message;
+    return;
+  }
+  // sidecar 换地址后要走 onUnpaired + connect，多刷两次等它连上/等授权
+  setTimeout(loadRoon, 1500);
+  setTimeout(loadRoon, 5000);
 };
 $("roontarget").onchange = async () => {
   try {

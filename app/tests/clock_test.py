@@ -117,7 +117,7 @@ class ConsoleCardTest(unittest.TestCase):
                           return_value="grid"):
             status = service.status()
         self.assertEqual(status["face"], "grid")
-        self.assertEqual(status["faces"], ["grid", "digital", "orbit", "weekday", "minimal", "lagoon", "milk", "forest", "roman"])
+        self.assertEqual(status["faces"], ["grid", "digital", "orbit", "weekday", "minimal", "lagoon", "milk", "forest", "roman", "factory_sunset", "factory_fantasy", "factory_bluesky", "factory_jellyfish"])
         self.assertEqual(status["voice_phrases"], [])
         self.assertEqual(status["builtin_phrases"], list(BUILTIN_KEYWORDS))
         self.assertEqual(status["builtin_mode"], "keywords")
@@ -128,7 +128,7 @@ class ConsoleCardTest(unittest.TestCase):
             status = service.status()
         self.assertEqual(status["face"], "orbit")
         self.assertEqual(status["faces"],
-                         ["grid", "digital", "orbit", "weekday", "minimal", "lagoon", "milk", "forest", "roman", "my-skin"])
+                         ["grid", "digital", "orbit", "weekday", "minimal", "lagoon", "milk", "forest", "roman", "factory_sunset", "factory_fantasy", "factory_bluesky", "factory_jellyfish", "my-skin"])
 
     def test_set_face_persists_and_broadcasts(self):
         service = make_service()

@@ -78,6 +78,9 @@ public final class FaceRegistry {
         for (ClockFace face : ALL) {
             out.add(face.name());
         }
+        if (FactoryIdle.available(appContext)) {
+            for (String name : FactoryIdle.names()) if (!out.contains(name)) out.add(name);
+        }
         return out;
     }
 
@@ -91,14 +94,8 @@ public final class FaceRegistry {
     }
 
     public static synchronized String next(String current) {
-        int index = -1;
-        for (int i = 0; i < ALL.size(); i++) {
-            if (ALL.get(i).name().equals(current)) {
-                index = i;
-                break;
-            }
-        }
-        return ALL.get((index + 1 + ALL.size()) % ALL.size()).name();
+        List<String> names = names();
+        return names.get((names.indexOf(current) + 1) % names.size());
     }
 
     // -- config.json ------------------------------------------------------

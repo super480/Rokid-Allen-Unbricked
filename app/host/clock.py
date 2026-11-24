@@ -31,7 +31,8 @@ CONFIG_PATH = "/sdcard/RokidClock/config.json"
 
 #: Built-in turns that cycle to the next face. Custom phrases from the
 #: console card join these after the shared match_key normalisation.
-BUILTIN_FACES = ("grid", "digital", "orbit", "weekday", "minimal", "lagoon", "milk", "forest", "roman")
+BUILTIN_FACES = ("grid", "digital", "orbit", "weekday", "minimal", "lagoon", "milk", "forest", "roman",
+                 "factory_sunset", "factory_fantasy", "factory_bluesky", "factory_jellyfish")
 
 BUILTIN_KEYWORDS = ("换个表盘", "下一个表盘", "切换表盘", "换个时钟样式",
                     "换个时钟")

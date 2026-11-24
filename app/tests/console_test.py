@@ -360,6 +360,20 @@ class ConsoleTest(unittest.TestCase):
         self.assertIn("const seen = new Set()", page)
         self.assertIn("seen.has(seq)", page)
 
+    def test_the_roon_card_can_point_at_another_core(self):
+        # The Core address used to be baked into the sidecar defaults; the
+        # console has to let the user retarget it and survive a Core move.
+        page = (Path(__file__).resolve().parents[1] / "host" / "web" /
+                "console.html").read_text(encoding="utf-8")
+        self.assertIn('id="roonhost"', page)
+        self.assertIn('id="roonport"', page)
+        self.assertIn('id="roonhostsave"', page)
+        # The save goes through the Roon settings route and carries the host.
+        self.assertIn('apiPost("/api/roon/settings", payload)', page)
+        self.assertIn("payload = { host }", page)
+        # A blank host must not wipe the saved address.
+        self.assertIn('if (!host) {', page)
+
     def test_the_users_words_are_a_blue_bubble_on_the_right(self):
         page = (Path(__file__).resolve().parents[1] / "host" / "web" /
                 "console.html").read_text(encoding="utf-8")

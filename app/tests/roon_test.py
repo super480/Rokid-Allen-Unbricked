@@ -169,6 +169,27 @@ class RoonClientTest(unittest.TestCase):
         self.assertEqual(second.target, "roon")
         self.assertEqual(second.zone_id, "zone-1")
 
+    def test_settings_forwards_the_core_address_to_the_sidecar(self):
+        client = self.client()
+        client.configure(host="192.0.2.10", port=9331)
+        self.assertEqual(self.fake.settings[-1]["host"], "192.0.2.10")
+        self.assertEqual(self.fake.settings[-1]["port"], 9331)
+
+    def test_settings_keeps_the_core_address_when_it_is_blank(self):
+        # Saving only the zone must not touch the address the sidecar is
+        # connected to: a blank host would otherwise wipe it.
+        client = self.client()
+        client.configure(zone_id="zone-1")
+        self.assertEqual(self.fake.settings[-1]["zone_id"], "zone-1")
+        self.assertNotIn("host", self.fake.settings[-1])
+        self.assertNotIn("port", self.fake.settings[-1])
+
+    def test_settings_ignores_a_non_numeric_port(self):
+        client = self.client()
+        client.configure(host="192.0.2.10", port="abc")
+        self.assertEqual(self.fake.settings[-1]["host"], "192.0.2.10")
+        self.assertNotIn("port", self.fake.settings[-1])
+
     def test_auto_routing_respects_the_local_player(self):
         client = self.client()
         client.status()
