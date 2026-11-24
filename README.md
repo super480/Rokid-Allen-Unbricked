@@ -1,6 +1,6 @@
 # Rokid-Allen-Unbricked
 
-![若琪外星人项目封面。左侧是显示彩色表盘的 Rokid Allen，右侧是助手角色头像。](docs/images/rokid-allen-cover.png)
+![若琪外星人项目封面：左侧是白色若琪外星人智能音箱，右侧九宫格展示 Hermes、WorkBuddy、DeepSeek、ChatGPT、Rokid、Gemini、N.E.K.O.、Home Assistant、Claude 九个助手头像，标注 Rokid Allen。](docs/images/rokid-allen-cover.png)
 
 **让老若琪重新开口。** 把 2018 年的若琪外星人 RH01CW（系统型号 ROKID-R2，Android 4.4 / API 19）接到 Mac，继续用它的原厂唤醒、麦克风和曲面屏。Mac 运行 AI 助手、音乐和本地查询服务，若琪负责接收语音、播报回复和显示卡片。
 
