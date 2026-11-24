@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="cn.rokid.bridge" android:versionCode="207" android:versionName="0.2.7">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="cn.rokid.bridge" android:versionCode="208" android:versionName="0.2.8">
   <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="19" />
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.WAKE_LOCK" />
