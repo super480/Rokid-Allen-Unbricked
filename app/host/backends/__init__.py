@@ -23,6 +23,7 @@ BACKENDS = {
     "neko": ("backends.neko", "NekoBackend"),
     "xiaojia": ("backends.ha_assistant", "HaAssistantBackend"),
     "claude": ("backends.claude", "ClaudeBackend"),
+    "gemini": ("backends.gemini", "GeminiBackend"),
 }
 
 

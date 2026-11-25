@@ -24,7 +24,12 @@ import intent
 import mac_speech
 import speech
 from backends import load_backend
+from backends.base import BackendError
 from backends.direct import FULL, HYBRID, OFF, DirectBackend, normalise_mode
+from backends.gemini import GeminiBackend
+from backends.gemini import DEFAULT_MODEL as GEMINI_DEFAULT_MODEL
+from backends.gemini import executable as gemini_executable
+from backends.gemini import normalise_model as gemini_model
 from backends.workbuddy_oauth import WorkBuddyOAuth
 from config import REGISTRY, agent_avatar, agent_design_dir, agent_name, agent_settings
 from history import HistoryStore, MEMORY_WINDOW
@@ -877,6 +882,9 @@ class Engine:
         place. Both ``backend_for`` and ``direct_settings`` need this: 若琪
         in direct mode reuses an assistant's backend too.
         """
+        if agent_id == "gemini":
+            return {key: value for key, value in (self.config.get("gemini") or {}).items()
+                    if key != "api_key"}
         settings = agent_settings(self.config, agent_id)
         shared = (REGISTRY.get(agent_id) or {}).get("config_section")
         if shared:
@@ -905,6 +913,8 @@ class Engine:
         else:
             settings["assistant_settings"] = agent_settings(self.config,
                                                             assistant)
+            if assistant == "gemini":
+                settings["assistant_settings"].pop("api_key", None)
         return settings
 
     def direct_mode(self):
@@ -1433,20 +1443,65 @@ class Engine:
 
     def backend_for(self, agent_id):
         """Return the backend for an assistant, creating it on first use."""
-        if agent_id in self.backends:
-            return self.backends[agent_id]
-        if agent_id == "direct":
-            backend = DirectBackend(self.direct_settings(for_backend=True),
-                                    self.store)
+        with self.lock:
+            if agent_id in self.backends:
+                return self.backends[agent_id]
+            if agent_id == "direct":
+                backend = DirectBackend(self.direct_settings(for_backend=True),
+                                        self.store)
+            else:
+                item = REGISTRY.get(agent_id)
+                if not item:
+                    return None
+                settings = self._assistant_settings(agent_id)
+                backend = load_backend(item["backend"], settings, self.store)
             self.backends[agent_id] = backend
             return backend
-        item = REGISTRY.get(agent_id)
-        if not item:
-            return None
-        settings = self._assistant_settings(agent_id)
-        backend = load_backend(item["backend"], settings, self.store)
-        self.backends[agent_id] = backend
-        return backend
+
+    def gemini_status(self):
+        with self.lock:
+            settings = self._assistant_settings("gemini")
+        return {"cli_available": bool(gemini_executable()),
+                "model": str(settings.get("model") or "").strip(),
+                "default_model": GEMINI_DEFAULT_MODEL}
+
+    def _gemini_settings(self, patch):
+        settings = self._assistant_settings("gemini")
+        if "model" in patch:
+            value = str(patch["model"] or "").strip()
+            settings["model"] = gemini_model(value) if value else ""
+        return settings
+
+    def set_gemini_settings(self, patch):
+        with self.lock:
+            old = self.config.get("gemini")
+            settings = self._gemini_settings(patch)
+            if settings != old:
+                self.config["gemini"] = settings
+                try:
+                    self._save_config(strict=True)
+                except OSError:
+                    if old is None:
+                        self.config.pop("gemini", None)
+                    else:
+                        self.config["gemini"] = old
+                    raise ValueError("无法写入 Gemini 配置，请检查主机配置文件权限。") from None
+                self._drop_backend("gemini")
+                direct = self.config.get("direct") or {}
+                if (direct.get("source", "assistant") == "assistant"
+                        and direct.get("assistant") == "gemini"):
+                    self._drop_backend("direct")
+            return self.gemini_status()
+
+    def test_gemini(self):
+        with self.lock:
+            settings = self._assistant_settings("gemini")
+        backend = GeminiBackend(settings)
+        try:
+            models = backend.check_account()
+        except BackendError as error:
+            return {"ok": False, "detail": str(error)}
+        return {"ok": True, "detail": "本机 Google 账号已登录", "models": models}
 
     def refresh_ha_backends(self):
         """HA address / token / agent changed from the console.
@@ -1533,6 +1588,9 @@ class Engine:
         if agent_id != "direct" and agent_id not in REGISTRY:
             raise ValueError("未知的助手")
         model = str(name or "").strip()
+        if agent_id == "gemini":
+            status = self.set_gemini_settings({"model": model})
+            return status["model"] or status["default_model"]
         if agent_id == "direct":
             direct = self.config.get("direct") or {}
             source = str(direct.get("source") or "assistant")
@@ -1550,6 +1608,8 @@ class Engine:
             # Direct mode reuses an assistant, so it answers with that
             # assistant's model. Changing it here changes it there.
             assistant = str(direct.get("assistant") or "hermes")
+            if assistant == "gemini":
+                return self.set_agent_model(assistant, model)
             self.set_agent_model(assistant, model)
             return model
 
@@ -2891,7 +2951,9 @@ class Engine:
                           # this to show "待授权" and offer the auth panel.
                           "connection": bool(item.get("connection")),
                           "auth": self.agent_auth_status(key)
-                                   if item.get("connection") else None}
+                                   if item.get("connection") else None,
+                          **({"configured": bool(gemini_executable())}
+                             if key == "gemini" else {})}
                     for key, item in REGISTRY.items()
                 },
             }

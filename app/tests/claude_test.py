@@ -81,12 +81,11 @@ class FakeBackend:
 
 
 class RegistryTest(unittest.TestCase):
-    def test_seventh_assistant_is_registered(self):
+    def test_claude_is_registered(self):
         item = config_module.REGISTRY["claude"]
         self.assertEqual(item["name"], "克劳德")
         self.assertEqual(item["backend"], "claude")
         self.assertTrue(item["enabled"])
-        self.assertEqual(len(config_module.enabled_agents()), 7)
         self.assertIn("claude", config_module.BACKEND_SECTIONS)
 
     def test_backend_loader(self):

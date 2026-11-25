@@ -265,6 +265,29 @@ class ServerTest(unittest.TestCase):
         # The key itself is never sent back.
         self.assertNotIn("sk-secret", json.dumps(body))
 
+    def test_gemini_settings_require_auth_and_use_a_model_without_a_key(self):
+        path = "/api/gemini/settings"
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            self.get(path)
+        self.assertEqual(caught.exception.code, 401)
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            self.post(path, {"api_key": "test-secret"})
+        self.assertEqual(caught.exception.code, 401)
+        _, saved = self.post(path, {"api_key": "test-secret", "model": "gemini-custom"},
+                             self.token)
+        self.assertIn("cli_available", saved)
+        self.assertNotIn("api_key_set", saved)
+        self.assertEqual(saved["model"], "gemini-custom")
+        self.assertNotIn("test-secret", json.dumps(saved))
+
+        self.post("/api/direct", {"source": "assistant", "assistant": "gemini"}, self.token)
+        for endpoint in (path, "/api/direct", "/api/status"):
+            _, response, _ = self.get(endpoint, self.token)
+            self.assertNotIn(b"test-secret", response)
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            self.post(path, {"model": "../../wrong"}, self.token)
+        self.assertEqual(caught.exception.code, 400)
+
     def test_a_bare_mode_still_works(self):
         status, body = self.post("/api/direct", {"mode": "hybrid"}, self.token)
         self.assertEqual(status, 200)

@@ -264,7 +264,7 @@ public final class AvatarView extends View {
         if ("hermes".equals(agent)) return "小赫";
         if ("xiaojia".equals(agent)) return "小家";
         if ("claude".equals(agent)) return "克劳德";
-        if ("gemini".equals(agent)) return "Gemini";
+        if ("gemini".equals(agent)) return "哈基米";
         if ("direct".equals(agent)) return "直连";
         if ("workbuddy".equals(agent)) return "巴蒂";
         if ("dsh".equals(agent)) return "大肥鱼";

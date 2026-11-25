@@ -71,16 +71,13 @@ class FakeBackend:
 
 
 class RegistryTest(unittest.TestCase):
-    def test_sixth_assistant_is_registered(self):
+    def test_xiaojia_is_registered(self):
         item = config_module.REGISTRY["xiaojia"]
         self.assertEqual(item["name"], "小家")
         # backend id must equal assistant id: DirectBackend.inner() calls
         # load_backend(assistant_id) when 若琪 reuses an assistant.
         self.assertEqual(item["backend"], "xiaojia")
         self.assertEqual(item["config_section"], "homeassistant")
-        # 小家 was the sixth; 克劳德 (claude) is now the seventh.
-        self.assertEqual(len(config_module.enabled_agents()), 7)
-        self.assertEqual(config_module.REGISTRY["claude"]["name"], "克劳德")
 
     def test_hermes_display_name_is_xiaohe(self):
         self.assertEqual(config_module.REGISTRY["hermes"]["name"], "小赫")
@@ -116,10 +113,10 @@ class WakeWordTest(unittest.TestCase):
         self.assertEqual(row["pinyin"], "xiao3jia1")
         self.assertEqual(row["aliases"], ["小家", "小佳", "小嘉", "小加"])
 
-    def test_seven_rows_and_no_duplicate_vt_word(self):
+    def test_wake_rows_and_no_duplicate_vt_word(self):
         self.engine.set_wake(enabled=True)
         agents = self.engine.wake_settings()["agents"]
-        self.assertEqual(len(agents), 7)
+        self.assertEqual(set(agents), set(config_module.enabled_agents()))
         self.assertEqual(agents["xiaojia"]["vt_word"],
                          "小家|小佳|小嘉|小加")
         self.assertEqual(agents["hermes"]["vt_word"],

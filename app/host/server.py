@@ -11,6 +11,7 @@ Routes
     GET  /api/threads        the same conversation, split up per assistant
     GET  /api/model          models of one assistant
     GET  /api/direct         the direct configuration
+    GET  /api/gemini/settings  Gemini model and local CLI availability
     GET  /api/agent-auth     authorisation status of a connected assistant
     GET  /api/agent-auth/start  start a browser sign-in, answers the login URL
     GET  /avatars/...        the assistant pictures
@@ -20,6 +21,8 @@ Routes
     POST /api/agent          select an assistant
     POST /api/model          change the model of an assistant
     POST /api/direct         change the direct configuration
+    POST /api/gemini/settings  save the Gemini model
+    POST /api/gemini/test    check the local Antigravity login
     POST /api/agent-auth     save a connected assistant's authorisation
     POST /api/agent-auth/poll  check whether the browser sign-in finished
     POST /api/approvals      resolve a pending approval
@@ -734,6 +737,9 @@ def make_handler(engine, token, roon_power=None):
             if url.path == "/api/direct":
                 self._send(200, engine.direct_status())
                 return
+            if url.path == "/api/gemini/settings":
+                self._send(200, engine.gemini_status())
+                return
             if url.path == "/api/wake":
                 # The wake-word settings: the master switch and one word
                 # per assistant, tone-marked pinyin.
@@ -1078,6 +1084,12 @@ def make_handler(engine, token, roon_power=None):
                     engine.set_direct_settings(body)
                     self._send(200, {"mode": engine.direct_mode(),
                                      "direct": engine.direct_status()})
+                    return
+                if url.path == "/api/gemini/settings":
+                    self._send(200, engine.set_gemini_settings(body))
+                    return
+                if url.path == "/api/gemini/test":
+                    self._send(200, engine.test_gemini())
                     return
                 if url.path == "/api/agent-auth":
                     # Save a connected assistant's authorisation. The token

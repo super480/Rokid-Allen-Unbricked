@@ -37,6 +37,9 @@ from pathlib import Path
 # DeepSeek character lives in ``deepseek/`` while the assistant is called
 # ``dsh``. The web console reads this folder to show the faces.
 
+GEMINI_NAME = "哈基米"
+GEMINI_WAKE_ALIASES = ("哈吉米", "哈极米", "哈集米", "哈基咪", "哈吉咪", "哈鸡米", "哈奇米")
+
 REGISTRY = {
     "hermes": {
         "name": "小赫",
@@ -119,6 +122,14 @@ REGISTRY = {
         "design": "claude",
         "aliases": ["claude", "cloud", "克劳德", "克劳得", "柯劳德",
                     "克老德", "克劳的", "刻劳德"],
+    },
+    "gemini": {
+        "name": GEMINI_NAME,
+        "enabled": True,
+        "backend": "gemini",
+        "avatar": "gemini",
+        "design": "gemini",
+        "aliases": [GEMINI_NAME, *GEMINI_WAKE_ALIASES, "gemini"],
     },
 }
 
@@ -444,6 +455,8 @@ DEFAULTS = {
             "claude": {"enabled": True, "pinyin": "ke4lao2de3",
                        "aliases": ["柯劳德", "科劳德", "刻劳德", "克劳得",
                                    "克老德", "克劳的", "claude", "cloud"]},
+            "gemini": {"enabled": True, "pinyin": "ha1ji2mi3",
+                       "aliases": list(GEMINI_WAKE_ALIASES)},
         },
     },
     # Where the N.E.K.O. runtime lives and which character to talk to.
@@ -579,11 +592,14 @@ DEFAULTS = {
         "permission_mode": "acceptEdits",
         "session_key": "claude_session",
     },
+    "gemini": {
+        "model": "",
+    },
 }
 
 # Assistants that have their own settings section in the config file.
 BACKEND_SECTIONS = ("hermes", "codex", "dsh", "workbuddy", "neko",
-                    "xiaojia", "claude")
+                    "xiaojia", "claude", "gemini")
 
 
 def atomic_json(path, data):

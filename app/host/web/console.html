@@ -293,6 +293,7 @@
   .row-text { flex: 1; min-width: 0; }
   .row .t { font-size: 13.5px; }
   .row .d { font-size: 11.5px; color: var(--dim); margin-top: 2px; }
+  #tab-gemini label span { display: block; }
   /* 唤醒词每行还要放输入框、保存按钮和开关，压紧一点才能让四个助手
      同时出现在弹窗里，不必滚动找最后一行。 */
   #wakerows .row { padding: 7px 2px; }
@@ -532,6 +533,7 @@
       <nav class="settings-nav" id="settingstabs">
         <div class="nav-head">设置</div>
         <button class="nav-item on" data-tab="direct">直连与模型</button>
+        <button class="nav-item" data-tab="gemini">Gemini授权</button>
         <button class="nav-item" data-tab="auth">WorkBuddy 授权</button>
         <button class="nav-item" data-tab="wake">唤醒词</button>
         <button class="nav-item" data-tab="neko">猫娘</button>
@@ -585,6 +587,28 @@
                 <input type="text" id="dirmodel" placeholder="模型名，如 deepseek-chat">
                 <div class="hintline">Key 只存在电脑的主机配置里，不会写进 APK 或浏览器。</div>
               </div>
+            </div>
+          </div>
+
+          <div class="tabpane" id="tab-gemini">
+            <div class="card">
+              <div class="card-title">本机 Antigravity 账号</div>
+              <div class="row">
+                <label class="row-text" for="geminimodel">
+                  <span class="t">模型 ID</span>
+                  <span class="d">留空使用默认模型</span>
+                </label>
+                <input type="text" class="input-mid" id="geminimodel" list="geminimodels" autocomplete="off" spellcheck="false">
+                <datalist id="geminimodels"></datalist>
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="d" id="geministatus" role="status"></div>
+                </div>
+                <button type="button" class="btn btn-tiny" id="geminitest">检查登录</button>
+                <button type="button" class="btn btn-tiny primary" id="geminisave">保存</button>
+              </div>
+              <div class="hintline">首次使用请在 Mac 终端运行 <code>agy</code> 并登录个人 Google 账号。检查登录可读取账号的 Gemini 模型列表。</div>
             </div>
           </div>
 
@@ -1543,10 +1567,11 @@ function renderAgents() {
 
   const enabled = [], disabled = [];
   const ordered = Object.entries(agents);
-  const claudeIndex = ordered.findIndex(([id]) => id === "claude");
-  if (claudeIndex >= 0 && ordered.some(([id]) => id === "dsh")) {
-    const [claude] = ordered.splice(claudeIndex, 1);
-    ordered.splice(ordered.findIndex(([id]) => id === "dsh"), 0, claude);
+  for (const agentId of ["claude", "gemini"]) {
+    const index = ordered.findIndex(([id]) => id === agentId);
+    if (index < 0 || !ordered.some(([id]) => id === "dsh")) continue;
+    const [entry] = ordered.splice(index, 1);
+    ordered.splice(ordered.findIndex(([id]) => id === "dsh"), 0, entry);
   }
   ordered.forEach(([id, info]) =>
     (info.enabled ? enabled : disabled).push([id, info]));
@@ -1588,6 +1613,15 @@ function renderAgents() {
         tag.textContent = "未接入";
         row.appendChild(tag);
         row.onclick = () => toast(info.name + " 尚未接入");
+      } else if (id === "gemini" && info.configured === false) {
+        const tag = document.createElement("span");
+        tag.className = "agent-tag";
+        tag.textContent = "待安装";
+        row.appendChild(tag);
+        row.onclick = () => {
+          openSettings();
+          showSettingsTab("gemini");
+        };
       } else if (info.connection && info.auth && !info.auth.configured) {
         // A connected assistant that has not been signed in yet: point the
         // user at the login panel instead of letting them talk to it.
@@ -2169,6 +2203,7 @@ $("settings").addEventListener("click", e => {
    授权分类用的是它自己的登录按钮。 */
 const PANE_META = {
   direct: ["直连与模型", "让若琪不喊「找助手」也能回答，并决定用哪个模型回答。"],
+  gemini: ["Gemini授权", "使用本机 Antigravity CLI 登录账号的模型额度。"],
   wake: ["唤醒词", "每个助手一个专属唤醒词：喊词直接找它，「若琪」保持原样。"],
   neko: ["猫娘 · 主动说话", "安静时主动开口的间隔与静默时段。"],
   music: ["音乐与声音", "用若琪自己的播放器放音乐；这条通道以后也用来接猫娘的声线。"],
@@ -2734,6 +2769,58 @@ $("hacmdsend").onclick = async () => {
   }
 };
 
+function setGeminiBusy(busy) {
+  for (const id of ["geminimodel", "geminitest", "geminisave"]) {
+    $(id).disabled = busy;
+  }
+}
+
+function renderGemini(settings) {
+  $("geminimodel").value = settings.model;
+  $("geminimodel").placeholder = settings.default_model;
+  $("geministatus").textContent = settings.cli_available ? "已检测到 agy" : "未找到 agy";
+}
+
+async function loadGemini() {
+  setGeminiBusy(true);
+  $("geministatus").textContent = "正在读取配置…";
+  try {
+    renderGemini(await apiGet("/api/gemini/settings"));
+  } catch (e) {
+    $("geministatus").textContent = "读取失败：" + e.message;
+  } finally {
+    setGeminiBusy(false);
+  }
+}
+
+async function submitGemini(action) {
+  setGeminiBusy(true);
+  try {
+    if (action === "test") {
+      $("geministatus").textContent = "正在检查本机账号…";
+      const result = await apiPost("/api/gemini/test", {});
+      $("geministatus").textContent = result.detail;
+      $("geminimodels").replaceChildren(...(result.models || []).map(id => {
+        const option = document.createElement("option");
+        option.value = id;
+        return option;
+      }));
+    } else {
+      renderGemini(await apiPost("/api/gemini/settings", { model: $("geminimodel").value.trim() }));
+      toast("哈基米设置已保存");
+      pollStatus();
+      if (selected === "gemini" || selected === "direct") loadModels();
+    }
+  } catch (e) {
+    $("geministatus").textContent = "操作失败：" + e.message;
+  } finally {
+    setGeminiBusy(false);
+  }
+}
+
+$("geminitest").onclick = () => submitGemini("test");
+$("geminisave").onclick = () => submitGemini("save");
+
 function showSettingsTab(name) {
   document.querySelectorAll("#settingstabs .nav-item").forEach(t => {
     t.classList.toggle("on", t.dataset.tab === name);
@@ -2753,10 +2840,12 @@ function showSettingsTab(name) {
   const isMusic = name === "music";
   const isRoon = name === "roon";
   const isHome = name === "home";
+  const isGemini = name === "gemini";
   const isMiniapps = name === "miniapps";
   $("authlogin").style.display = isAuth ? "" : "none";
   $("settingssave").style.display = (isAuth || isMisc || isWake || isNeko
-      || isMusic || isMiniapps || isHome) ? "none" : "";
+      || isMusic || isMiniapps || isHome || isGemini) ? "none" : "";
+  if (isGemini) loadGemini();
   if (isWake) loadWake();
   if (isNeko) { loadNeko(); }
   if (isMusic) loadMusic();
