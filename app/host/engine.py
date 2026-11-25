@@ -39,6 +39,7 @@ from miniapps import MiniAppService
 from weather import FACTORY_WEATHER_WORDS, WeatherService
 from clock import ClockService
 from homeassistant import HomeAssistantService
+from notify_relay import NotifyService
 
 # Proactive chat (B plan, route R3). The N.E.K.O. server delivers its own
 # proactive stream only to the desktop client's "current" WS connection, so
@@ -241,6 +242,11 @@ class Engine:
         self.homeassistant = HomeAssistantService(
             config=self.config.get("homeassistant") or {},
             save=self._save_config, engine=self)
+        # Mac notification relay (P2-12): off by default; Unix socket is
+        # started by server.py in production so unit tests stay isolated.
+        self.notify = NotifyService(
+            self, config=self.config.get("notify") or {},
+            save=self._save_config)
         # The replacement data API lives in server.py (it owns the port);
         # the reference lets the console's override switch start / stop
         # it at runtime without a host restart.
@@ -1927,6 +1933,7 @@ class Engine:
             if kind == "tts_error":
                 with self.lock:
                     self.tts_errors += 1
+            self.notify.on_device_event(kind, event)
             return {"accepted": True, "intent": "ack"}
 
         if kind == "volume_state":
@@ -2645,6 +2652,15 @@ class Engine:
                 self.busy = False
                 self.active_request_id = ""
 
+    def is_busy_for_notify(self):
+        """True while a conversation turn, TTS or audio playback is active."""
+        with self.lock:
+            if self.busy or not self.jobs.empty():
+                return True
+            if getattr(self, "audio_state", "idle") == "playing":
+                return True
+        return False
+
     def deliver_speech(self, answer, agent_id, request_id="",
                         card_id="", expires_at_ms=0):
         """The one place assistant speech leaves the host.
@@ -2993,6 +3009,10 @@ class Engine:
                 pass
         try:
             self.homeassistant.close()
+        except Exception:
+            pass
+        try:
+            self.notify.close()
         except Exception:
             pass
         self.jobs.put_nowait(None)

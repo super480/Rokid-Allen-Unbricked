@@ -143,8 +143,17 @@ public final class MiniAppCardView extends View {
     private boolean animating = false;
     private boolean running = false;
     private boolean homeFeedback = false;
+    private boolean notifyCarousel = false;
+    private long notifyElapsedMs = 0L;
     private final HomeFeedbackCard homeRenderer = new HomeFeedbackCard(
             new HomeFeedbackCard.AssetLoader() {
+                @Override
+                public Bitmap load(String name) {
+                    return loadIcon(name);
+                }
+            });
+    private final NotifyCarouselCard notifyRenderer = new NotifyCarouselCard(
+            new NotifyCarouselCard.AssetLoader() {
                 @Override
                 public Bitmap load(String name) {
                     return loadIcon(name);
@@ -202,18 +211,20 @@ public final class MiniAppCardView extends View {
             frameCount++;
             float u = (now - animationStart) / (float) animationDuration;
             if (homeFeedback) homeProgress = clamp(u, 0f, 1f);
+            if (notifyCarousel) notifyElapsedMs = Math.max(0L, now - animationStart);
             if (u >= 1f) {
                 animating = false;
                 wobble = 0f;
                 shown[0] = target[0];
                 shown[1] = target[1];
+                if (notifyCarousel) notifyElapsedMs = animationDuration;
                 long span = now - frameFirstAt;
                 Log.d(TAG, "anim frames=" + frameCount + " span=" + span
                         + "ms avg=" + (frameCount > 1
                                 ? frameGapSum / (frameCount - 1) : 0)
                         + "ms max=" + frameGapMax + "ms fps="
                         + (span > 0 ? (int) (frameCount * 1000f / span) : 0));
-            } else if (!homeFeedback) {
+            } else if (!homeFeedback && !notifyCarousel) {
                 float eased = spring(u);
                 for (int i = 0; i < 2; i++) {
                     shown[i] = from[i] + (target[i] - from[i]) * eased;
@@ -297,6 +308,15 @@ public final class MiniAppCardView extends View {
             return;
         }
         String layout = str(next, "layout");
+        notifyCarousel = "notify_carousel".equals(layout);
+        if (notifyCarousel) {
+            homeFeedback = false;
+            recycleIcon();
+            backdrop();
+            notifyElapsedMs = 0L;
+            startAnimation();
+            return;
+        }
         homeFeedback = "lines".equals(str(next, "template"))
                 && "home_feedback".equals(layout) && homePageCount() > 0;
         if (homeFeedback) {
@@ -368,8 +388,11 @@ public final class MiniAppCardView extends View {
 
     private void startAnimation() {
         animationStart = SystemClock.uptimeMillis();
-        animationDuration = homeFeedback ? HOME_DROP_MS : ANIMATION_MS;
+        animationDuration = notifyCarousel
+                ? Math.max(1L, notifyRenderer.durationMs())
+                : (homeFeedback ? HOME_DROP_MS : ANIMATION_MS);
         homeProgress = 0f;
+        notifyElapsedMs = 0L;
         wobble = 0f;
         animating = true;
         resetFrames();
@@ -401,6 +424,11 @@ public final class MiniAppCardView extends View {
         handler.removeCallbacks(frame);
         animating = false;
         float p = Math.min(1f, Math.max(0f, u));
+        if (notifyCarousel) {
+            notifyElapsedMs = Math.round(p * notifyRenderer.durationMs());
+            invalidate();
+            return;
+        }
         if (homeFeedback) {
             homeProgress = p;
             invalidate();
@@ -462,6 +490,11 @@ public final class MiniAppCardView extends View {
                 return;
             }
         }
+        if (notifyCarousel) {
+            canvas.drawBitmap(backdrop(), 0f, 0f, null);
+            notifyRenderer.drawForeground(canvas, notifyElapsedMs);
+            return;
+        }
         if (homeFeedback) {
             canvas.drawColor(BACKGROUND);
             canvas.save();
@@ -493,7 +526,9 @@ public final class MiniAppCardView extends View {
             Bitmap layer = Bitmap.createBitmap((int) WIDTH, (int) HEIGHT,
                     Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(layer);
-            if (homeFeedback) {
+            if (notifyCarousel) {
+                notifyRenderer.prepare(canvas, card);
+            } else if (homeFeedback) {
                 JSONObject page = card.optJSONArray("rows").optJSONObject(homePage);
                 if (page == null) page = new JSONObject();
                 homeRenderer.prepare(canvas, page, str(card, "status"));
@@ -511,6 +546,7 @@ public final class MiniAppCardView extends View {
 
     private void dropBackdrop() {
         homeRenderer.release();
+        notifyRenderer.release();
         if (backdrop != null) {
             backdrop.recycle();
             backdrop = null;

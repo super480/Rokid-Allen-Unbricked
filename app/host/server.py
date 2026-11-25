@@ -561,6 +561,12 @@ def make_handler(engine, token, roon_power=None):
                 # The console card (设置 · 小应用 · 待机时钟).
                 self._send(200, engine.clock.status())
                 return
+            if url.path == "/api/notify":
+                self._send(200, engine.notify.status())
+                return
+            if url.path == "/api/notify/installed-apps":
+                self._send(200, {"apps": engine.notify.installed_apps()})
+                return
             if url.path == "/api/roon/status":
                 self._send(200, roon_client.status())
                 return
@@ -1361,6 +1367,45 @@ def make_handler(engine, token, roon_power=None):
                         sentence, request_id=str(body.get("request_id")
                                                  or "")))
                     return
+                if url.path == "/api/notify/settings":
+                    self._send(200, engine.notify.update_settings(body))
+                    return
+                if url.path == "/api/notify/sources/add":
+                    res = engine.notify.add_custom_source(
+                        source_id=str(body.get("source_id") or ""),
+                        mode=str(body.get("mode") or "title"),
+                    )
+                    self._send(200 if res.get("ok") else 400, res)
+                    return
+                if url.path == "/api/notify/sources/remove":
+                    res = engine.notify.remove_custom_source(
+                        str(body.get("source_id") or "")
+                    )
+                    self._send(200 if res.get("ok") else 400, res)
+                    return
+                if url.path == "/api/notify/pause":
+                    raw_sec = body.get("seconds", 3600)
+                    try:
+                        sec = float(raw_sec)
+                    except (TypeError, ValueError):
+                        sec = 3600.0
+                    self._send(200, engine.notify.pause(sec))
+                    return
+                if url.path == "/api/notify/preview":
+                    sid = str(body.get("source_id") or "")
+                    try:
+                        ttl = float(body.get("ttl", 60))
+                    except (TypeError, ValueError):
+                        ttl = 60.0
+                    self._send(200, engine.notify.arm_preview(sid, ttl=ttl))
+                    return
+                if url.path == "/api/notify/test-card":
+                    sid = str(body.get("source_id") or "com.apple.iCal")
+                    speak = body.get("speak", True)
+                    text = str(body.get("text") or "一小时后，您在大会议室有个重要会议")
+                    self._send(200, engine.notify.send_test_card(
+                        sid, speak=bool(speak), text=text))
+                    return
                 if url.path == "/api/roon/settings":
                     self._send(200, roon_client.configure(
                         target=body.get("target"),
@@ -1440,6 +1485,10 @@ def main():
                                          cfg.get("weather") or {})
     if engine.weather.enabled:
         engine.weather_api.start()
+    try:
+        engine.notify.start_socket()
+    except Exception as exc:
+        print(f"notify: socket start failed: {exc}", file=sys.stderr, flush=True)
 
     def shutdown(*_):
         # shutdown() blocks until serve_forever() returns, so it must not run

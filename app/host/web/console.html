@@ -542,6 +542,7 @@
         <button class="nav-item" data-tab="home">家居</button>
         <button class="nav-item" data-tab="appearance">其它</button>
         <button class="nav-item" data-tab="miniapps">应用商店</button>
+        <button class="nav-item" data-tab="notify">通知播报</button>
       </nav>
 
       <!-- ── 右侧：内容区 ── -->
@@ -1029,6 +1030,59 @@
                 <button class="btn btn-tiny" id="hacmdsend">发送</button>
               </div>
               <div class="hintline" id="hacmdresult">还没有试发过。</div>
+            </div>
+          </div>
+
+          <!-- 分类三之二：Mac 通知播报（P2-12） -->
+          <div class="tabpane" id="tab-notify">
+            <div class="card">
+              <div class="card-title">Mac 通知播报<span class="src-badge">仅已勾选来源</span></div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">启用通知播报</div>
+                  <div class="d">首次默认全部关闭；仅读取 Mac 通知横幅可见文字，不申请完全磁盘访问</div>
+                </div>
+                <input type="checkbox" id="notifyenabled" class="switch">
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">权限与读取器状态</div>
+                  <div class="d" id="notifyreader">读取中…</div>
+                </div>
+                <button class="btn btn-tiny" id="notifyrefresh">刷新</button>
+              </div>
+              <div class="row">
+                <div class="row-text">
+                  <div class="t">快捷控制</div>
+                  <div class="d" id="notifypausehint">锁屏或无法确认锁屏状态时默认静默</div>
+                </div>
+                <button class="btn btn-tiny" id="notifypause">暂停一小时</button>
+                <button class="btn btn-tiny" id="notifypreview">预览下一条</button>
+                <button class="btn btn-tiny" id="notifytestcard">播报测试卡</button>
+              </div>
+              <div class="hintline" id="notifypreviewbox" style="display:none"></div>
+              <div class="hintline" id="notifyhint">提示：若琪语音播报目前走原厂云 TTS，开启「播标题与正文」前请确认正文不包含敏感隐私；推荐先用「仅卡片」或「只播来源」验收。</div>
+            </div>
+            <div class="card" id="notifyappcard">
+              <div class="card-title">应用设置<span class="src-badge">默认保留提醒事项与日历</span></div>
+              <div id="notifysources" class="hintline">读取中…</div>
+              <div class="row" style="margin-top:8px">
+                <select id="notifycustomapp" class="input-mid" style="flex:1;min-width:180px">
+                  <option value="">正在读取本机应用程序目录…</option>
+                </select>
+                <select id="notifycustommode" class="input-mid">
+                  <option value="card">仅卡片</option>
+                  <option value="source">只播来源</option>
+                  <option value="title" selected>播标题</option>
+                  <option value="title_body">播标题与正文</option>
+                </select>
+                <button class="btn btn-tiny" id="notifycustomadd">添加</button>
+              </div>
+              <div class="hintline" id="notifyaddfeedback" role="status" style="display:none"></div>
+              <div class="row">
+                <div class="row-text"><div class="d" id="notifycounters">计数：暂无</div></div>
+                <button class="btn btn-tiny" id="notifysave">保存</button>
+              </div>
             </div>
           </div>
 
@@ -2677,6 +2731,214 @@ $("factorynoticemute").onchange = async () => {
 
 /* ---------- 智能家居（Home Assistant） ---------- */
 
+const NOTIFY_MODE_LABELS = {
+  off: "关闭",
+  card: "仅卡片",
+  source: "只播来源",
+  title: "播标题",
+  title_body: "播标题与正文",
+};
+let _notifyCatalog = [];
+
+function renderNotify(r) {
+  $("notifyenabled").checked = !!r.enabled;
+  const rd = r.reader || {};
+  const conn = rd.connected ? "已连接" : "未连接";
+  const perm = rd.trusted === true ? "辅助功能已授权" : (rd.trusted === false ? "未授权辅助功能" : "权限未知");
+  const lock = rd.locked === true ? "锁屏（静默）" : (rd.locked === false ? "已解锁" : "锁屏状态未知");
+  $("notifyreader").textContent = `${conn} · ${perm} · ${lock}`;
+  $("notifypause").textContent = r.paused ? "恢复播报" : "暂停一小时";
+  $("notifypausehint").textContent = r.paused
+    ? `已暂停，剩余约 ${Math.max(1, Math.ceil((r.paused_remaining_s || 0) / 60))} 分钟`
+    : "锁屏或无法确认锁屏状态时默认静默";
+
+  const pv = r.preview || {};
+  const box = $("notifypreviewbox");
+  if (pv.item) {
+    box.style.display = "";
+    const parts = [pv.item.source_name, pv.item.title, pv.item.subtitle, pv.item.body].filter(Boolean);
+    box.textContent = "本机预览（短暂展示，不下发设备）：" + parts.join(" · ");
+  } else if (pv.armed) {
+    box.style.display = "";
+    box.textContent = "正在等待下一条通知用于本机预览（60 秒内，不下发设备）…";
+  } else {
+    box.style.display = "none";
+    box.textContent = "";
+  }
+
+  _notifyCatalog = r.catalog || [];
+  const list = $("notifysources");
+  list.innerHTML = "";
+  const off = !r.enabled;
+  $("notifyappcard").style.opacity = off ? "0.6" : "";
+  _notifyCatalog.forEach(item => {
+    const row = document.createElement("div");
+    row.className = "row";
+    const text = document.createElement("div");
+    text.className = "row-text";
+    const t = document.createElement("div");
+    t.className = "t";
+    t.textContent = item.name;
+    const d = document.createElement("div");
+    d.className = "d";
+    d.textContent = item.builtin ? "内置应用" : "自定义应用";
+    text.appendChild(t);
+    text.appendChild(d);
+    const sel = document.createElement("select");
+    sel.className = "input-mid";
+    sel.dataset.notifySource = item.id;
+    sel.disabled = off;
+    (r.modes || Object.keys(NOTIFY_MODE_LABELS)).forEach(m => {
+      const opt = document.createElement("option");
+      opt.value = m;
+      opt.textContent = NOTIFY_MODE_LABELS[m] || m;
+      if (m === item.mode) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    row.appendChild(text);
+    row.appendChild(sel);
+    if (!item.builtin) {
+      const del = document.createElement("button");
+      del.className = "btn btn-tiny";
+      del.textContent = "删除";
+      del.disabled = off;
+      del.onclick = async () => {
+        try {
+          renderNotify(await apiPost("/api/notify/sources/remove", { source_id: item.id }));
+          setNotifyFeedback(true, "已删除「" + item.name + "」。");
+          loadNotifyApps();
+        } catch (e) {
+          setNotifyFeedback(false, "删除失败：" + e.message);
+        }
+      };
+      row.appendChild(del);
+    }
+    list.appendChild(row);
+  });
+  $("notifycustomapp").disabled = off;
+  $("notifycustommode").disabled = off;
+  $("notifycustomadd").disabled = off;
+  $("notifysave").disabled = off;
+
+  const c = r.counters || {};
+  const pairs = Object.keys(c).sort().map(k => `${k}=${c[k]}`);
+  $("notifycounters").textContent = pairs.length ? ("计数：" + pairs.join(" · ")) : "计数：暂无";
+}
+
+function setNotifyFeedback(ok, text) {
+  const el = $("notifyaddfeedback");
+  el.style.display = "";
+  el.style.color = ok ? "#16a34a" : "#dc2626";
+  el.textContent = text;
+}
+
+async function loadNotifyApps() {
+  const sel = $("notifycustomapp");
+  try {
+    const r = await apiGet("/api/notify/installed-apps");
+    const apps = r.apps || [];
+    sel.innerHTML = "";
+    const ph = document.createElement("option");
+    ph.value = "";
+    ph.textContent = apps.length ? "选择要添加的本机应用…" : "没有更多可添加的本机应用";
+    sel.appendChild(ph);
+    apps.forEach(a => {
+      const opt = document.createElement("option");
+      opt.value = a.id;
+      opt.textContent = `${a.name} (${a.id})`;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    sel.innerHTML = "";
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "读取应用程序目录失败";
+    sel.appendChild(opt);
+  }
+}
+
+async function loadNotify() {
+  try {
+    renderNotify(await apiGet("/api/notify"));
+    loadNotifyApps();
+  } catch (e) {
+    $("notifyreader").textContent = "读取失败：" + e.message;
+  }
+}
+
+$("notifyrefresh").onclick = () => loadNotify();
+$("notifyenabled").onchange = async () => {
+  const on = $("notifyenabled").checked;
+  try {
+    renderNotify(await apiPost("/api/notify/settings", { enabled: on }));
+    $("notifyhint").textContent = on ? "Mac 通知播报总开关已开启。" : "Mac 通知播报总开关已关闭。";
+  } catch (e) {
+    $("notifyenabled").checked = !on;
+    $("notifyhint").textContent = "切换失败：" + e.message;
+  }
+};
+$("notifycustomadd").onclick = async () => {
+  const source_id = ($("notifycustomapp").value || "").trim();
+  if (!source_id) {
+    setNotifyFeedback(false, "添加失败：请先从下拉列表选择一个本机应用。");
+    return;
+  }
+  const mode = $("notifycustommode").value || "title";
+  try {
+    const r = await apiPost("/api/notify/sources/add", { source_id, mode });
+    renderNotify(r);
+    setNotifyFeedback(true, (r.message || "添加成功") + "（" + (NOTIFY_MODE_LABELS[mode] || mode) + "）。");
+    loadNotifyApps();
+  } catch (e) {
+    setNotifyFeedback(false, "添加失败：" + e.message);
+  }
+};
+$("notifysave").onclick = async () => {
+  const sources = {};
+  document.querySelectorAll("select[data-notify-source]").forEach(el => {
+    sources[el.dataset.notifySource] = el.value;
+  });
+  try {
+    renderNotify(await apiPost("/api/notify/settings", {
+      enabled: $("notifyenabled").checked,
+      sources,
+    }));
+    $("notifyhint").textContent = "通知播报设置已保存。";
+  } catch (e) {
+    $("notifyhint").textContent = "保存失败：" + e.message;
+  }
+};
+$("notifypause").onclick = async () => {
+  const resume = $("notifypause").textContent === "恢复播报";
+  try {
+    renderNotify(await apiPost("/api/notify/pause", { seconds: resume ? 0 : 3600 }));
+  } catch (e) {
+    $("notifyhint").textContent = "操作失败：" + e.message;
+  }
+};
+$("notifypreview").onclick = async () => {
+  try {
+    renderNotify(await apiPost("/api/notify/preview", { ttl: 60 }));
+  } catch (e) {
+    $("notifyhint").textContent = "开启预览失败：" + e.message;
+  }
+};
+$("notifytestcard").onclick = async () => {
+  try {
+    const r = await apiPost("/api/notify/test-card", {
+      source_id: "com.apple.iCal",
+      speak: true,
+      text: "一小时后，您在大会议室有个重要会议",
+    });
+    $("notifyhint").textContent = r.emitted
+      ? "已下发测试卡并播报：「" + (r.text || "") + "」（" + r.card_id + "）。"
+      : "测试卡已生成（当前无设备连接）。";
+    loadNotify();
+  } catch (e) {
+    $("notifyhint").textContent = "发送测试卡失败：" + e.message;
+  }
+};
+
 async function loadHome() {
   try {
     const r = await apiGet("/api/homeassistant");
@@ -2840,17 +3102,19 @@ function showSettingsTab(name) {
   const isMusic = name === "music";
   const isRoon = name === "roon";
   const isHome = name === "home";
+  const isNotify = name === "notify";
   const isGemini = name === "gemini";
   const isMiniapps = name === "miniapps";
   $("authlogin").style.display = isAuth ? "" : "none";
   $("settingssave").style.display = (isAuth || isMisc || isWake || isNeko
-      || isMusic || isMiniapps || isHome || isGemini) ? "none" : "";
+      || isMusic || isMiniapps || isHome || isNotify || isGemini) ? "none" : "";
   if (isGemini) loadGemini();
   if (isWake) loadWake();
   if (isNeko) { loadNeko(); }
   if (isMusic) loadMusic();
   if (isRoon) loadRoon();
   if (isHome) loadHome();
+  if (isNotify) loadNotify();
   if (isMiniapps) { showAppCatalog(); loadAppStore(); loadMiniappVoice(); loadWeather(); loadClock(); }
   if (isMisc) { applyTheme(); loadFactoryNotice(); }
   if (isAuth) {

@@ -393,6 +393,16 @@ DEFAULTS = {
         "faces": ["grid", "digital", "orbit", "weekday", "minimal", "lagoon", "milk", "forest", "roman"],
         "voice_phrases": [],
     },
+    # Mac notification relay (P2-12): off by default until the user enables
+    # sources in the console. No notification text is ever persisted here.
+    "notify": {
+        "enabled": False,
+        "sources": {},
+        "custom_sources": [],
+        "paused_until": 0.0,
+        "ttl_seconds": 30.0,
+        "dedupe_window": 20.0,
+    },
     # Wake words: the local wake-word feature. The factory could change
     # the wake word through its cloud, which is gone; the plan is to
     # register extra words on the device itself through the openvoice
