@@ -1176,12 +1176,28 @@ class WakeWordEventTest(unittest.TestCase):
         # A wake is a switch, not a question: no backend is called.
         self.assertEqual(self.backend.answers, [])
 
-    def test_the_factory_word_leaves_the_assistant_alone(self):
-        self.engine.set_wake(enabled=True)
-        self.engine.select("dsh", announce=False)
-        result = self.wake("若琪|洛奇")
-        self.assertEqual(result["selected_agent"], "dsh")
-        self.assertEqual(self.engine.selected, "dsh")
+    def test_the_factory_word_switches_to_direct_even_with_custom_wake_off(self):
+        for enabled in (False, True):
+            with self.subTest(custom_wake=enabled):
+                self.engine.set_wake(enabled=enabled)
+                self.engine.select("gemini", announce=False)
+                result = self.wake("若琪|洛奇")
+                self.assertEqual(result["selected_agent"], "")
+                self.assertEqual(self.engine.status()["selected_agent"], "")
+                self.assertIsNone(self.engine.store["selected_agent"])
+        self.assertEqual(self.backend.answers, [])
+        result = self.engine.handle_event({
+            "type": "asr_final", "text": "给我讲个故事",
+            "request_id": "rokid-question", "source": "bus"})
+        self.engine.jobs.join()
+        self.assertEqual(result["agent"], "direct")
+        self.assertEqual(self.backend.answers, ["给我讲个故事"])
+
+    def test_unknown_and_unlabeled_wakes_leave_the_assistant_selected(self):
+        self.engine.select("gemini", announce=False)
+        self.wake("没事了")
+        self.engine.handle_event({"type": "wake"})
+        self.assertEqual(self.engine.selected, "gemini")
 
     def test_nothing_routes_while_the_master_switch_is_off(self):
         self.wake("大肥鱼")

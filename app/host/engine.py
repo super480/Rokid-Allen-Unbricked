@@ -1972,10 +1972,9 @@ class Engine:
                 for agent_id, row in settings["agents"].items()
                 if row["enabled"] and row["pinyin"]
             }
-            agent = intent.wake_word_agent(word, spellings, pinyins)
+            factory_wake = intent.factory_wake_word(word)
+            agent = "direct" if factory_wake else intent.wake_word_agent(word, spellings, pinyins)
             if not agent:
-                # "若琪|洛奇" and the other factory words are not ours to
-                # route; the factory keeps answering exactly as before.
                 return {"accepted": True, "intent": "wake_word",
                         "selected_agent": self.selected or ""}
             now = time.time()
@@ -1996,13 +1995,17 @@ class Engine:
                 # the self-wake burst does exactly that.
                 if age < WAKE_BURST_GAP or (last_agent == agent and age < 3):
                     return {"accepted": True, "intent": "wake_word",
-                            "selected_agent": agent, "duplicate": True}
+                            "selected_agent": self.selected or "", "duplicate": True}
                 self.last_wake_route = (agent, now)
             # No greeting: the speaker is already talking, and a broadcast
             # now would make the microphone hear its own voice instead.
-            self.select(agent, announce=False)
+            if factory_wake:
+                if self.selected:
+                    self.exit(announce=False)
+            else:
+                self.select(agent, announce=False)
             return {"accepted": True, "intent": "wake_word",
-                    "selected_agent": agent}
+                    "selected_agent": self.selected or ""}
 
         if kind not in ("asr_final", "text"):
             raise ValueError("不支持的事件类型")

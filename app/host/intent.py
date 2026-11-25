@@ -172,6 +172,13 @@ WAKE_PHONETIC = {
 }
 
 
+def factory_wake_word(word):
+    """Match the factory Rokid wake label, including its alias list."""
+    labels = {normalize(part) for part in re.split(r"[|｜,，/]", word)}
+    labels.discard("")
+    return bool(labels) and labels <= {"若琪", "若弃", "洛奇", "罗琪"}
+
+
 def wake_word_agent(word, spellings, pinyins=None):
     """Map the wake word the engine actually matched to an assistant id.
 
@@ -182,8 +189,8 @@ def wake_word_agent(word, spellings, pinyins=None):
     print the phonetic spelling instead of the label.
 
     Returns the assistant id, or None for the factory's own word
-    ("若琪|洛奇") and for anything else we do not manage. Leaving the
-    factory word alone keeps "若琪" behaving exactly as before.
+    ("若琪|洛奇") and for anything else we do not manage. The engine
+    handles the factory label separately.
     """
     if not word or not spellings:
         return None

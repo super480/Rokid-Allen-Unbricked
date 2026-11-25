@@ -143,7 +143,13 @@ public final class MiniAppCardView extends View {
     private boolean animating = false;
     private boolean running = false;
     private boolean homeFeedback = false;
-    private final HomeFeedbackCard homeRenderer = new HomeFeedbackCard();
+    private final HomeFeedbackCard homeRenderer = new HomeFeedbackCard(
+            new HomeFeedbackCard.AssetLoader() {
+                @Override
+                public Bitmap load(String name) {
+                    return loadIcon(name);
+                }
+            });
     private int homePage = 0;
     private long homePageAt = 0L;
     private float homeProgress = 1f;
@@ -460,11 +466,11 @@ public final class MiniAppCardView extends View {
             canvas.drawColor(BACKGROUND);
             canvas.save();
             canvas.translate(0f, homeDropOffset(homeProgress));
-            iconPaint.setAlpha(Math.round(51f + 204f * clamp(homeProgress / 0.69f, 0f, 1f)));
+            int opacity = Math.round(51f + 204f * clamp(homeProgress / 0.69f, 0f, 1f));
+            iconPaint.setAlpha(opacity);
             canvas.drawBitmap(backdrop(), 0f, 0f, iconPaint);
             iconPaint.setAlpha(255);
-            float unfilled = 1f - clamp((homeProgress - 0.2f) / 0.8f, 0f, 1f);
-            homeRenderer.drawMeter(canvas, 1f - unfilled * unfilled);
+            homeRenderer.drawForeground(canvas, homeProgress, opacity);
             canvas.restore();
             return;
         }
@@ -490,12 +496,7 @@ public final class MiniAppCardView extends View {
             if (homeFeedback) {
                 JSONObject page = card.optJSONArray("rows").optJSONObject(homePage);
                 if (page == null) page = new JSONObject();
-                Bitmap glyph = loadIcon(str(page, "icon"));
-                try {
-                    homeRenderer.draw(canvas, page, str(card, "status"), glyph);
-                } finally {
-                    if (glyph != null) glyph.recycle();
-                }
+                homeRenderer.prepare(canvas, page, str(card, "status"));
             } else {
                 canvas.drawColor(BACKGROUND);
                 drawFace(canvas);
@@ -509,6 +510,7 @@ public final class MiniAppCardView extends View {
     }
 
     private void dropBackdrop() {
+        homeRenderer.release();
         if (backdrop != null) {
             backdrop.recycle();
             backdrop = null;
