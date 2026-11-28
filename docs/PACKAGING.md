@@ -36,21 +36,17 @@ shasum -a 256 "dist/Rokid-Allen-Unbricked-0.3.0-$(uname -m)-local.dmg"
 
 已有项目签名不同会导致 Android 拒绝覆盖。自用构建会在 app/build/ 留下本地开发 keystore，只供此电脑后续同签测试，请保留。需要发布长期可升级 APK 时请自行提供 ROKID_KEYSTORE、ROKID_KEY_ALIAS、ROKID_STORE_PASSWORD、ROKID_KEY_PASSWORD 环境变量；通过安全输入或钥匙串取值，勿将值写入仓库、命令历史或聊天。这四项由 Android 构建脚本读取。
 
-## 通知播报读取器（可选，实验性）
+## 通知播报读取器与辅助功能权限
 
-v0.3.0 起控制台提供「设置 → 通知播报」：接收端、过滤去重、播报和圆形屏幕卡片已随基础包提供，默认全部关闭，本机不保存真实通知正文。macOS 只允许经辅助功能（AX）授权的进程读取其他 App 的通知横幅，因此**推送端读取器不由 DMG 自动安装或授权**，需机主自行决定并构建：
+v0.3.0 起控制台提供「设置 → 通知播报」：接收端、过滤去重、播报、圆形屏幕卡片以及 macOS 辅助功能（AX）通知读取器均已随主 `.app` 一起提供，默认全部关闭，本机不保存真实通知正文。
 
-1. 在本仓库执行 `zsh app/notify/probe/build.sh`，用本机 Xcode 的 `swiftc` 编译 `app/build/notify-probe/notify-probe-cli`（产物被 git 忽略）。
-2. 首次给启动器授权：`zsh app/notify/probe/build.sh --launcher` 生成 `RokidNotifyProbe.app`，到「系统设置 → 隐私与安全性 → 辅助功能」勾选它。启动器 cdhash 稳定，之后重编译探针 CLI 无需重复授权。
-3. 控制台打开通知播报总开关并勾选来源，再运行读取器（示例，`<ip>` 为若琪地址）：
-
-```sh
-SOCK="$HOME/Library/Application Support/Rokid-Allen-Unbricked/notify.sock"
-"app/build/notify-probe/RokidNotifyProbe.app/Contents/MacOS/RokidNotifyProbe" \
-  observe --seconds 0 --poll-ms 0 --marker "" --socket "$SOCK"
-```
-
-`--marker ""` 确保日志只记计数不存真实通知文本。读取器与 host 必须指向同一 socket；`default_socket_path()` 在用户名过长时会回退到 `/tmp/rokid-notify-<uid>/`，此时把 `SOCK` 改为该路径。未授权、锁屏、专注模式或历史通知均保持静默。此读取器为实验性功能，来源覆盖面（尤其提醒事项与第三方 Agent 的真实横幅）尚未全部实测。
+- **权限归属**：AX 读取器直接编入 `Rokid-Allen-Unbricked.app` 主进程，应用启动时自动运行并在退出时随之停止，不拉起外部独立读取器进程。
+- **首次启用步骤**：
+  1. 启动 `Rokid-Allen-Unbricked.app` 并开启控制台（若尚未授予辅助功能权限，读取器会优雅降级并在控制台上报未授权状态）。
+  2. 打开「系统设置 → 隐私与安全性 → 辅助功能」，点击 `+` 添加或勾选 `Rokid-Allen-Unbricked.app`。授权后约 2 秒内自动恢复连接，无需重启 App。
+  3. 在控制台「设置 → 通知播报」打开总开关并按需勾选来源。
+- **重打包升级提示**：本机 `build-app.sh` 使用 ad-hoc 签名，每次重新构建 `.app` 后签名哈希（cdhash）会变化；若升级后控制台显示未授权，请在「辅助功能」列表中先移除旧条目再重新勾选新 `.app`。
+- **隐私与静默保证**：日志不记录任何真实通知正文；锁屏、未授权、专注模式或启动前的历史通知均保持静默。读取器与 Host 默认共用 `~/Library/Application Support/Rokid-Allen-Unbricked/notify.sock`（路径 UTF-8 长度超过 96 字节时双方一致回退到用户私有临时目录 `rokid-notify-<uid>/notify.sock`）。
 
 ## 实机与公开发行
 

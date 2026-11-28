@@ -26,7 +26,11 @@ from notify_relay import (  # noqa: E402
     DEFAULT_SETTINGS,
     NotifyRelay,
     NotifyService,
+    _find_icon_helper,
     compose,
+    default_icon_cache_dir,
+    default_socket_path,
+    extract_app_icon_png,
     normalize_event,
     resolve_source,
 )
@@ -568,6 +572,72 @@ class NotifyBatch4DeliveryTest(unittest.TestCase):
             self.assertEqual(eng.emitted[1][1]["text"], "日历，周会")
         finally:
             svc.close()
+
+
+class NotifyBundleEnvironmentTest(unittest.TestCase):
+    def test_socket_and_icon_cache_respect_env_overrides(self):
+        with tempfile.TemporaryDirectory() as td:
+            old_sock = os.environ.get("ROKID_NOTIFY_SOCKET")
+            old_data = os.environ.get("ROKID_DATA")
+            try:
+                custom_sock = str(Path(td) / "custom.sock")
+                os.environ["ROKID_NOTIFY_SOCKET"] = custom_sock
+                os.environ["ROKID_DATA"] = td
+                self.assertEqual(default_socket_path(), Path(custom_sock))
+                self.assertEqual(default_icon_cache_dir(), Path(td) / "runtime" / "notify-icons")
+            finally:
+                if old_sock is None:
+                    os.environ.pop("ROKID_NOTIFY_SOCKET", None)
+                else:
+                    os.environ["ROKID_NOTIFY_SOCKET"] = old_sock
+                if old_data is None:
+                    os.environ.pop("ROKID_DATA", None)
+                else:
+                    os.environ["ROKID_DATA"] = old_data
+
+    def test_icon_helper_resolution_and_extract_invocation(self):
+        with tempfile.TemporaryDirectory() as td:
+            helper = Path(td) / "RokidAllen"
+            helper.write_text(
+                "#!/bin/sh\n"
+                "out=''\n"
+                "while [ $# -gt 0 ]; do\n"
+                "  if [ \"$1\" = '--out' ]; then out=\"$2\"; shift 2; continue; fi\n"
+                "  shift\n"
+                "done\n"
+                "printf 'PNGDATA' > \"$out\"\n",
+                encoding="utf-8",
+            )
+            helper.chmod(0o755)
+            out_png = Path(td) / "icons" / "demo.png"
+            old_helper = os.environ.get("ROKID_ICON_HELPER")
+            old_res = os.environ.get("ROKID_RESOURCES")
+            try:
+                os.environ["ROKID_ICON_HELPER"] = str(helper)
+                os.environ.pop("ROKID_RESOURCES", None)
+                self.assertEqual(_find_icon_helper(), helper)
+                self.assertTrue(extract_app_icon_png("/Applications/Demo.app", out_png))
+                self.assertEqual(out_png.read_bytes(), b"PNGDATA")
+
+                # 也能从 ROKID_RESOURCES 推导出 ../MacOS/RokidAllen
+                os.environ.pop("ROKID_ICON_HELPER", None)
+                contents = Path(td) / "App.app" / "Contents"
+                (contents / "MacOS").mkdir(parents=True)
+                (contents / "Resources").mkdir(parents=True)
+                bundle_exe = contents / "MacOS" / "RokidAllen"
+                bundle_exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+                bundle_exe.chmod(0o755)
+                os.environ["ROKID_RESOURCES"] = str(contents / "Resources")
+                self.assertEqual(_find_icon_helper(), bundle_exe)
+            finally:
+                if old_helper is None:
+                    os.environ.pop("ROKID_ICON_HELPER", None)
+                else:
+                    os.environ["ROKID_ICON_HELPER"] = old_helper
+                if old_res is None:
+                    os.environ.pop("ROKID_RESOURCES", None)
+                else:
+                    os.environ["ROKID_RESOURCES"] = old_res
 
 
 if __name__ == "__main__":

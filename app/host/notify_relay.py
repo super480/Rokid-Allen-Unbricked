@@ -384,6 +384,9 @@ class NotifyRelay:
 # ---------------------------------------------------------------------------
 
 def default_socket_path() -> Path:
+    override = os.environ.get("ROKID_NOTIFY_SOCKET", "").strip()
+    if override:
+        return Path(override)
     base = Path.home() / "Library" / "Application Support" / "Rokid-Allen-Unbricked"
     candidate = base / "notify.sock"
     # macOS AF_UNIX sun_path 上限为 104 字节；若 HOME 过长则回退到用户私有临时目录（0700）。
@@ -594,13 +597,32 @@ def _safe_icon_filename(source_id: str) -> str:
 
 
 def default_icon_cache_dir() -> Path:
+    data_dir = os.environ.get("ROKID_DATA", "").strip()
+    if data_dir:
+        return Path(data_dir) / "runtime" / "notify-icons"
     return Path(__file__).resolve().parent.parent / "runtime" / "notify-icons"
 
 
+def _find_icon_helper() -> Optional[Path]:
+    """定位支持 `extract-icon` 子命令的本机可执行文件（优先主 .app，其次开发态探针）。"""
+    candidates: list[Path] = []
+    helper_env = os.environ.get("ROKID_ICON_HELPER", "").strip()
+    if helper_env:
+        candidates.append(Path(helper_env))
+    res_env = os.environ.get("ROKID_RESOURCES", "").strip()
+    if res_env:
+        candidates.append(Path(res_env).parent / "MacOS" / "RokidAllen")
+    candidates.append(Path(__file__).resolve().parent.parent / "build" / "notify-probe" / "notify-probe-cli")
+    for path in candidates:
+        if path.is_file() and os.access(path, os.X_OK):
+            return path
+    return None
+
+
 def extract_app_icon_png(app_path: str, out_path: Path) -> bool:
-    """调用 Swift 工具把 Mac .app 图标导出为 128x128 透明 PNG（支持 Assets.car）。"""
-    cli = Path(__file__).resolve().parent.parent / "build" / "notify-probe" / "notify-probe-cli"
-    if not cli.is_file() or not app_path:
+    """调用主进程或开发态 Swift 工具把 Mac .app 图标导出为 128x128 透明 PNG（支持 Assets.car）。"""
+    cli = _find_icon_helper()
+    if cli is None or not app_path:
         return False
     try:
         out_path.parent.mkdir(parents=True, exist_ok=True)

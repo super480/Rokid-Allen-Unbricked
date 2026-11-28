@@ -41,7 +41,7 @@ for package in ("paho-mqtt", "pyinstaller"):
         if path.name.startswith(("LICENSE", "COPYING")):
             shutil.copyfile(dist.locate_file(path), target / (package + "-" + path.name))
 PYLICENSE
-xcrun swiftc -O macos/main.swift -framework AppKit -o "$content/MacOS/RokidAllen"
+xcrun swiftc -O macos/main.swift macos/NotifyReader.swift -framework AppKit -framework ApplicationServices -o "$content/MacOS/RokidAllen"
 cat > "$content/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>

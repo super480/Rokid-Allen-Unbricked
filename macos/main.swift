@@ -12,8 +12,12 @@ final class SetupWindow: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
     let message = NSTextField(wrappingLabelWithString: "请使用可信家庭局域网。音箱需已开启网络 ADB。固化会在目标设备上保存调试端口 5555。")
     var verifiedIP: String?
     var child: Process?
+    var notifyReader: NotifyReader?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let reader = NotifyReader()
+        reader.start()
+        notifyReader = reader
         window.title = "Rokid-Allen-Unbricked"
         let group = NSStackView()
         group.orientation = .vertical
@@ -94,6 +98,8 @@ final class SetupWindow: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
         process.arguments = [action, "--ip", targetIP]
         var env = ProcessInfo.processInfo.environment
         if let adb = UserDefaults.standard.string(forKey: "adbPath") { env["ROKID_ADB"] = adb }
+        env["ROKID_NOTIFY_EMBEDDED"] = "1"
+        if let exe = Bundle.main.executablePath { env["ROKID_ICON_HELPER"] = exe }
         env["PATH"] = NSHomeDirectory() + "/.local/bin:/opt/homebrew/bin:/usr/local/bin:" + (env["PATH"] ?? "/usr/bin:/bin")
         process.environment = env
         let output = Pipe()
@@ -128,7 +134,63 @@ final class SetupWindow: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationWillTerminate(_ notification: Notification) {
+        notifyReader?.stop()
+        notifyReader = nil
         if let child = child, child.isRunning { child.terminate(); child.waitUntilExit() }
+    }
+}
+
+let cliArgs = Array(CommandLine.arguments.dropFirst())
+if let subcommand = cliArgs.first {
+    switch subcommand {
+    case "extract-icon":
+        exit(NotifyReader.extractIcon(arguments: Array(cliArgs.dropFirst())))
+    case "notify-check":
+        let info = NotifyReader.envInfo()
+        if let data = try? JSONSerialization.data(withJSONObject: info, options: [.sortedKeys]),
+           let line = String(data: data, encoding: .utf8) {
+            print(line)
+        }
+        exit(0)
+    case "notify-reader":
+        var sockArg: String?
+        var duration: Double = 0
+        var idx = 1
+        while idx < cliArgs.count {
+            let a = cliArgs[idx]
+            let v = idx + 1 < cliArgs.count ? cliArgs[idx + 1] : ""
+            if a == "--socket" { sockArg = v; idx += 1 }
+            else if a == "--seconds" { duration = Double(v) ?? 0; idx += 1 }
+            idx += 1
+        }
+        let reader = NotifyReader(socketPath: sockArg)
+        reader.start()
+        signal(SIGTERM, SIG_IGN)
+        signal(SIGINT, SIG_IGN)
+        let sigTerm = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        sigTerm.setEventHandler {
+            reader.stop()
+            exit(0)
+        }
+        sigTerm.resume()
+        let sigInt = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
+        sigInt.setEventHandler {
+            reader.stop()
+            exit(0)
+        }
+        sigInt.resume()
+        if duration > 0 {
+            Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { _ in
+                reader.stop()
+                exit(0)
+            }
+        }
+        let app = NSApplication.shared
+        app.setActivationPolicy(.prohibited)
+        app.run()
+        exit(0)
+    default:
+        break
     }
 }
 
