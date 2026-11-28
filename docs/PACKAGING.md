@@ -24,13 +24,13 @@
 ./macos/build-app.sh
 ```
 
-脚本编译 Java Bridge、校验 API 19 签名、冻结 Python Host、编译 Swift 启动窗口，嵌入同一份 APK，完成本地 ad-hoc 签名，制作并校验 DMG。可以在不连接音箱的情况下打包。产物在当前仓库的 `dist/`，Apple Silicon 对应 `Rokid-Allen-Unbricked-0.3.1-arm64-local.dmg`。同名目录内也有可直接打开的 App。拖入“应用程序”即可按 README 输入 IP。请只在自己构建或已验证来源时打开。
+脚本编译 Java Bridge、校验 API 19 签名、冻结 Python Host、编译 Swift 启动窗口，嵌入同一份 APK，完成本地 ad-hoc 签名，制作并校验 DMG。可以在不连接音箱的情况下打包。产物在当前仓库的 `dist/`，Apple Silicon 对应 `Rokid-Allen-Unbricked-0.3.2-arm64-local.dmg`。同名目录内也有可直接打开的 App。拖入“应用程序”即可按 README 输入 IP。请只在自己构建或已验证来源时打开。
 
 ```sh
-APP="dist/Rokid-Allen-Unbricked-0.3.1-$(uname -m)-local/Rokid-Allen-Unbricked.app"
+APP="dist/Rokid-Allen-Unbricked-0.3.2-$(uname -m)-local/Rokid-Allen-Unbricked.app"
 codesign --verify --deep --strict "$APP"
 "$APP/Contents/Resources/engine/rokidctl" --help
-shasum -a 256 "dist/Rokid-Allen-Unbricked-0.3.1-$(uname -m)-local.dmg"
+shasum -a 256 "dist/Rokid-Allen-Unbricked-0.3.2-$(uname -m)-local.dmg"
 .venv-build/bin/python -m unittest discover -s app/tests -p '*_test.py'
 ```
 
