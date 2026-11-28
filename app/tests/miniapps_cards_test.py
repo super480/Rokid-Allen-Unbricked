@@ -123,7 +123,12 @@ class SchemaTest(unittest.TestCase):
         solid = [rgb.getpixel((x, y))
                  for x in range(0, 256, 8) for y in range(0, 256, 8)
                  if alpha.getpixel((x, y)) > 240]
-        self.assertGreater(len(solid), 200)
+        # The public build ships system-chip.png, not D037's gpt-logo;
+        # its 8px grid yields 138 solid samples. The 200 threshold belonged
+        # to the old private asset and was left behind when v0.2.7 swapped
+        # the reference (948d979). Keep the real quality checks: transparent
+        # corners, pure white pixels, and a visibly filled glyph.
+        self.assertGreater(len(solid), 100)
         self.assertTrue(all(pixel == (255, 255, 255) for pixel in solid))
 
     def test_device_renderer_keeps_the_review_decisions(self):

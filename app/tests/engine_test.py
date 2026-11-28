@@ -116,6 +116,8 @@ class EngineTest(unittest.TestCase):
         self.engine.handle_event({
             "type": "asr_final", "text": "找小赫", "request_id": "r1"})
         # Both deliveries arrive while the original question is pending.
+        # Hold the RLock so the worker cannot remove that queue key between
+        # the two calls -- it removes keys under the same lock.
         with self.engine.lock:
             first = self.engine.chat("同一个问题", "hermes")
             second = self.engine.chat("同一个问题", "hermes")
