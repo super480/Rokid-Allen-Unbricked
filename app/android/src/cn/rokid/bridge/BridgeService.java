@@ -12,6 +12,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Parcel;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import android.os.Vibrator;
 import android.util.Log;
@@ -111,6 +112,9 @@ public final class BridgeService extends Service {
     private long miniCardExpiresAtMs = 0L;
     private String miniCardInstance = "";
     private Runnable miniExpireTask = null;
+    private PowerManager.WakeLock miniCardWakeLock = null;
+    private static final long MIN_CARD_WAKE_MS = 2000L;
+    private static final long MAX_CARD_WAKE_MS = 12000L;
     /** Roon is display-only: no MediaPlayer, audio leaves via its AirPlay zone. */
     private volatile boolean roonShowing = false;
     private volatile String roonCoverPath = "";
@@ -929,12 +933,15 @@ public final class BridgeService extends Service {
         if (generation < miniCardGeneration) return;
         JSONObject card = command.optJSONObject("card");
         if (card == null) return;
+        boolean wakeScreen = command.optBoolean("wake_screen", false)
+                || "mac_notify".equals(command.optString("app_id", ""))
+                || "notify_carousel".equals(card.optString("layout", ""));
         showMiniCard(id, generation, expires,
-                     command.optLong("ttl_ms", 20000), card);
+                     command.optLong("ttl_ms", 20000), card, wakeScreen);
     }
 
     private void showMiniCard(String id, long generation, long expires,
-                              long ttlMs, JSONObject card) {
+                              long ttlMs, JSONObject card, boolean wakeScreen) {
         boolean sameCard = miniCard != null && id.equals(miniCardId);
         miniCardId = id;
         miniCardGeneration = generation;
@@ -965,10 +972,45 @@ public final class BridgeService extends Service {
             miniCard.apply(card, sameCard);
             bringMiniCardToFront();
             scheduleMiniCardHide();
+            if (wakeScreen) {
+                long remainMs = miniCardExpiresAtMs - System.currentTimeMillis();
+                wakeScreenForMiniCard(id, remainMs);
+            }
             log("miniapp", "card shown id=" + id + " gen=" + generation);
         } catch (Exception error) {
             log("error", "miniapp card: " + error);
             hideMiniCard();
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void wakeScreenForMiniCard(String id, long remainMs) {
+        try {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm == null || pm.isScreenOn()) return;
+            if (miniCardWakeLock == null) {
+                miniCardWakeLock = pm.newWakeLock(
+                        PowerManager.SCREEN_BRIGHT_WAKE_LOCK
+                                | PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                        "RokidBridge:NotifyCard");
+                miniCardWakeLock.setReferenceCounted(false);
+            }
+            long holdMs = Math.max(MIN_CARD_WAKE_MS,
+                    Math.min(MAX_CARD_WAKE_MS, remainMs));
+            miniCardWakeLock.acquire(holdMs);
+            log("miniapp", "screen wake acquired ms=" + holdMs + " id=" + id);
+        } catch (Exception error) {
+            log("error", "miniapp screen wake: " + error);
+        }
+    }
+
+    private void releaseMiniCardWakeLock() {
+        try {
+            if (miniCardWakeLock != null && miniCardWakeLock.isHeld()) {
+                miniCardWakeLock.release();
+                log("miniapp", "screen wake released");
+            }
+        } catch (Exception ignored) {
         }
     }
 
@@ -1021,6 +1063,7 @@ public final class BridgeService extends Service {
         }
         miniCardId = "";
         miniCardExpiresAtMs = 0L;
+        releaseMiniCardWakeLock();
         // Nothing is restored explicitly: removing the opaque card simply
         // reveals whatever is really underneath right now (music screen,
         // character overlay, or the factory's own eyes).
@@ -1592,6 +1635,8 @@ public final class BridgeService extends Service {
     public void onDestroy() {
         alive = false;
         stopAudio(false);
+        hideMiniCard();
+        releaseMiniCardWakeLock();
         hideAvatar();
         if (speechGuard != null) speechGuard.close();
         bus.close();

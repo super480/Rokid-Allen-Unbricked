@@ -869,6 +869,7 @@ class NotifyService:
                 "request_id": request_id,
                 "ttl_ms": NOTIFY_CARD_TTL_MS,
                 "expires_at_ms": expires_ms,
+                "wake_screen": True,
                 "card": self._build_carousel_card(
                     delivery.event.source_id,
                     delivery.event.source_name,
@@ -1129,6 +1130,7 @@ class NotifyService:
                 "request_id": request_id,
                 "ttl_ms": TEST_CARD_TTL_MS,
                 "expires_at_ms": expires_ms,
+                "wake_screen": True,
                 "card": card,
             }
             speak_payload = None

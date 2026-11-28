@@ -569,6 +569,7 @@ class NotifyBatch4DeliveryTest(unittest.TestCase):
             busy_flag[0] = False
             svc.on_device_event("playback_done", {})
             self.assertEqual([k for k, _ in eng.emitted], ["miniapp_card", "speak"])
+            self.assertTrue(eng.emitted[0][1].get("wake_screen"))
             self.assertEqual(eng.emitted[1][1]["text"], "日历，周会")
         finally:
             svc.close()
@@ -638,6 +639,28 @@ class NotifyBundleEnvironmentTest(unittest.TestCase):
                     os.environ.pop("ROKID_RESOURCES", None)
                 else:
                     os.environ["ROKID_RESOURCES"] = old_res
+
+
+class NotifyWakeScreenContractTest(unittest.TestCase):
+    def test_wake_screen_flag_and_android_wakelock_contract(self):
+        eng = _StubEngine()
+        svc = NotifyService(eng, config={"enabled": True})
+        res = svc.send_test_card("com.apple.reminders", speak=False)
+        self.assertTrue(res["ok"])
+        self.assertEqual([k for k, _ in eng.emitted], ["miniapp_card"])
+        self.assertTrue(eng.emitted[0][1].get("wake_screen"))
+
+        bridge_java = (
+            ROOT / "android/src/cn/rokid/bridge/BridgeService.java"
+        ).read_text(encoding="utf-8")
+        # 仅在息屏时短超时唤醒，非引用计数，并在隐藏/销毁时释放，绝不常亮
+        self.assertIn("ACQUIRE_CAUSES_WAKEUP", bridge_java)
+        self.assertIn("pm.isScreenOn()", bridge_java)
+        self.assertIn("setReferenceCounted(false)", bridge_java)
+        self.assertIn("miniCardWakeLock.acquire(holdMs)", bridge_java)
+        self.assertIn("releaseMiniCardWakeLock()", bridge_java)
+        self.assertNotIn("ON_AFTER_RELEASE", bridge_java)
+        svc.close()
 
 
 if __name__ == "__main__":
